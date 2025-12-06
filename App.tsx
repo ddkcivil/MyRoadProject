@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -17,7 +16,9 @@ import {
   FolderOpen,
   Users,
   Compass,
-  Hammer
+  Hammer,
+  Map as MapIcon,
+  Bell
 } from 'lucide-react';
 import { UserRole, Project, AppSettings } from './types';
 import { MOCK_PROJECTS } from './constants';
@@ -38,6 +39,7 @@ import PreConstructionModule from './components/PreConstructionModule';
 import UserManagement from './components/UserManagement';
 import SettingsModule from './components/SettingsModule';
 import ConstructionModule from './components/ConstructionModule';
+import MapModule from './components/MapModule';
 
 const App: React.FC = () => {
   // Auth State
@@ -54,9 +56,13 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
+  // Notification Simulation State
+  const [notifications, setNotifications] = useState<string[]>([]);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+
   // App Settings State (Defaults)
   const [appSettings, setAppSettings] = useState<AppSettings>({
-    companyName: 'RoadMaster Construction Ltd.',
+    companyName: 'MyRoad Project Ltd.',
     currency: 'USD',
     vatRate: 13,
     fiscalYearStart: '2023-07-16',
@@ -71,6 +77,30 @@ const App: React.FC = () => {
   });
 
   const currentProject = projects.find(p => p.id === selectedProjectId);
+
+  // Simulate receiving data from site staff
+  useEffect(() => {
+    if (!isAuthenticated || !currentProject) return;
+
+    const messages = [
+      "Site Eng: New RFI submitted for Ch 12+500",
+      "Lab Tech: Compaction Test passed at Borrow Pit A",
+      "Supervisor: Excavator 220 active at Km 5",
+      "Admin: Updated material stock for Cement",
+      "GPS Tracker: Paver P-102 moved to Zone B (Ch 8+000)"
+    ];
+
+    const interval = setInterval(() => {
+        // Randomly add a notification every 15-30 seconds to simulate real-time data
+        if (Math.random() > 0.7) {
+            const msg = messages[Math.floor(Math.random() * messages.length)];
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            setNotifications(prev => [`${time} - ${msg}`, ...prev].slice(0, 5));
+        }
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, currentProject]);
 
   const handleLogin = (role: UserRole, name: string) => {
       setIsAuthenticated(true);
@@ -136,6 +166,7 @@ const App: React.FC = () => {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'map', label: 'GIS & Tracking', icon: MapIcon },
     { id: 'precon', label: 'Pre-Construction', icon: Compass },
     { id: 'schedule', label: 'Schedule & Plan', icon: CalendarClock },
     { id: 'construction', label: 'Construction Works', icon: Hammer },
@@ -167,8 +198,8 @@ const App: React.FC = () => {
           <div className="min-h-screen bg-slate-50 flex flex-col">
               <header className="bg-slate-900 text-white h-16 px-8 flex items-center justify-between shadow-md">
                   <div className="flex items-center gap-2 font-bold text-xl">
-                      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">R</div>
-                      <span>RoadMaster Pro</span>
+                      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">M</div>
+                      <span>MyRoad Project</span>
                   </div>
                   <div className="flex items-center gap-4">
                       <span className="text-sm text-slate-300">Welcome, {userName}</span>
@@ -201,6 +232,7 @@ const App: React.FC = () => {
 
     switch (activeTab) {
       case 'dashboard': return <Dashboard project={currentProject} settings={appSettings} />;
+      case 'map': return <MapModule {...props} />;
       case 'precon': return <PreConstructionModule {...props} />;
       case 'schedule': return <ScheduleModule {...props} />;
       case 'construction': return <ConstructionModule {...props} />;
@@ -241,9 +273,9 @@ const App: React.FC = () => {
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800">
           <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              R
+              M
             </div>
-            <span>RoadMaster</span>
+            <span>MyRoad</span>
           </div>
           <button 
             onClick={() => setIsSidebarOpen(false)}
@@ -322,11 +354,49 @@ const App: React.FC = () => {
           </h1>
           
           <div className="flex items-center gap-4">
-               <div className="hidden md:block text-right">
+               
+               {/* Notification Bell (Simulates Sync) */}
+               <div className="relative">
+                  <button 
+                    onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                    className="p-2 text-slate-500 hover:bg-slate-100 rounded-full relative"
+                  >
+                      <Bell size={20} />
+                      {notifications.length > 0 && (
+                          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                      )}
+                  </button>
+                  
+                  {showNotifDropdown && (
+                      <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+                          <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 text-xs font-bold text-slate-500">
+                              Incoming Data Stream
+                          </div>
+                          <div className="max-h-64 overflow-y-auto">
+                              {notifications.length === 0 ? (
+                                  <div className="p-4 text-center text-sm text-slate-400">All synced. No new updates.</div>
+                              ) : (
+                                  notifications.map((n, i) => (
+                                      <div key={i} className="px-4 py-3 border-b border-slate-50 hover:bg-blue-50 text-sm text-slate-700 animate-in fade-in slide-in-from-top-2 duration-300">
+                                          {n}
+                                      </div>
+                                  ))
+                              )}
+                          </div>
+                          <div className="bg-slate-50 px-4 py-2 border-t border-slate-100 text-center">
+                              <button onClick={() => setNotifications([])} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                                  Mark all as read
+                              </button>
+                          </div>
+                      </div>
+                  )}
+               </div>
+
+               <div className="hidden md:block text-right border-l border-slate-200 pl-4">
                 <div className="text-sm font-bold text-slate-900">{currentProject.name}</div>
                 <div className="text-xs text-slate-500 flex items-center justify-end gap-1">
-                   <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                   Active | {currentProject.location}
+                   <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                   Sync Active | {currentProject.location}
                 </div>
                </div>
              <button 
