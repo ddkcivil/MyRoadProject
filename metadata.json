@@ -1,0 +1,7 @@
+{
+  "name": "RoadMaster Pro",
+  "description": "Comprehensive construction management system for road infrastructure projects, featuring BOQ tracking, RFI management, Lab reporting, and AI-driven project analytics.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
