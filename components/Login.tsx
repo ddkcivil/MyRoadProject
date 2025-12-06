@@ -73,9 +73,9 @@ const Login: React.FC<Props> = ({ onLogin }) => {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
         <div className="bg-blue-600 p-8 text-center relative">
             <div className="w-16 h-16 bg-white/20 rounded-xl mx-auto flex items-center justify-center mb-4 backdrop-blur-sm">
-                <span className="text-3xl font-bold text-white">R</span>
+                <span className="text-3xl font-bold text-white">M</span>
             </div>
-            <h1 className="text-2xl font-bold text-white">RoadMaster Pro</h1>
+            <h1 className="text-2xl font-bold text-white">MyRoad Project</h1>
             <p className="text-blue-100 text-sm mt-2">Construction Management System</p>
         </div>
         
