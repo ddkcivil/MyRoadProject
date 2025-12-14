@@ -3,9 +3,9 @@ import { GoogleGenAI } from "@google/genai";
 import { BOQItem, RFI, ScheduleTask } from '../types';
 
 const getAIClient = () => {
-  const GEMINI_API_KEY = "VITE_GEMINI_API_KEY_PLACEHOLDER";
+  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
   if (!GEMINI_API_KEY) {
-    console.warn("Gemini API Key is missing.");
+    console.warn("Gemini API Key is missing. Please set VITE_GEMINI_API_KEY in your .env file.");
     return null;
   }
   return new GoogleGenAI({ apiKey: GEMINI_API_KEY });
