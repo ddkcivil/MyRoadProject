@@ -1,7 +1,27 @@
-
 import React, { useState } from 'react';
 import { UserRole, Project, LabTest } from '../types';
 import { Beaker, FileText, Plus, Check, X } from 'lucide-react';
+import {
+    Box,
+    Typography,
+    Button,
+    Card,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Chip,
+    IconButton,
+    Tooltip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
+    Grid
+} from '@mui/material';
 
 interface Props {
   userRole: UserRole;
@@ -9,13 +29,43 @@ interface Props {
   onProjectUpdate: (project: Project) => void;
 }
 
+export const getResultChip = (result: 'Pass' | 'Fail' | 'Pending') => {
+    if (result === 'Pass') return <Chip label="Pass" color="success" size="small" />;
+    if (result === 'Fail') return <Chip label="Fail" color="error" size="small" />;
+    return <Chip label="Pending" color="warning" size="small" />;
+};
+
+interface LabTestRowProps {
+  test: LabTest;
+  handleUpdateResult: (id: string, result: 'Pass' | 'Fail') => void;
+}
+
+const LabTestRow: React.FC<LabTestRowProps> = React.memo(({ test, handleUpdateResult }) => {
+  return (
+    <TableRow hover key={test.id}>
+      <TableCell>{test.sampleId}</TableCell>
+      <TableCell>{test.testName}</TableCell>
+      <TableCell>{test.location}</TableCell>
+      <TableCell>{test.date}</TableCell>
+      <TableCell>{getResultChip(test.result)}</TableCell>
+      <TableCell>{test.technician}</TableCell>
+      <TableCell align="right">
+        {test.result === 'Pending' ? (
+          <Box>
+            <Tooltip title="Mark as Pass"><IconButton color="success" onClick={() => handleUpdateResult(test.id, 'Pass')} aria-label="Mark test as pass" size="small" sx={{ minWidth: { xs: 44, md: 'auto' }, minHeight: { xs: 44, md: 'auto' } }}><Check /></IconButton></Tooltip>
+            <Tooltip title="Mark as Fail"><IconButton color="error" onClick={() => handleUpdateResult(test.id, 'Fail')} aria-label="Mark test as fail" size="small" sx={{ minWidth: { xs: 44, md: 'auto' }, minHeight: { xs: 44, md: 'auto' } }}><X /></IconButton></Tooltip>
+          </Box>
+        ) : (
+          <Button size="small" startIcon={<FileText size={14}/>}>View Report</Button>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+});
+
 const LabModule: React.FC<Props> = ({ userRole, project, onProjectUpdate }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newTest, setNewTest] = useState({
-    testName: '',
-    sampleId: '',
-    location: ''
-  });
+  const [newTest, setNewTest] = useState({ testName: '', sampleId: '', location: '' });
 
   const handleAddTest = (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,143 +76,81 @@ const LabModule: React.FC<Props> = ({ userRole, project, onProjectUpdate }) => {
       technician: userRole,
       ...newTest
     };
-    
-    onProjectUpdate({
-      ...project,
-      labTests: [test, ...project.labTests]
-    });
+    onProjectUpdate({ ...project, labTests: [test, ...project.labTests] });
     setIsModalOpen(false);
     setNewTest({ testName: '', sampleId: '', location: '' });
   };
 
   const handleUpdateResult = (id: string, result: 'Pass' | 'Fail') => {
-    const updatedTests = project.labTests.map(t => 
-      t.id === id ? { ...t, result } : t
-    );
-    onProjectUpdate({ ...project, labTests: updatedTests });
+    onProjectUpdate({
+      ...project,
+      labTests: project.labTests.map(t => t.id === id ? { ...t, result } : t)
+    });
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Material Laboratory</h2>
-          <p className="text-slate-500 text-sm">Daily Quality Control & Assurance Updates</p>
+          <Typography variant="h4" fontWeight="bold">Material Laboratory</Typography>
+          <Typography variant="subtitle1" color="text.secondary">Quality Control & Assurance</Typography>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors"
-        >
-          <Plus size={18} />
+        <Button variant="contained" startIcon={<Plus />} onClick={() => setIsModalOpen(true)}>
           Register Sample
-        </button>
-      </div>
+        </Button>
+      </Box>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {project.labTests.length === 0 ? (
-             <div className="p-10 text-center text-slate-500">No lab tests recorded for this project yet.</div>
-        ) : (
-        <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
-                <tr>
-                    <th className="px-6 py-4">Sample ID</th>
-                    <th className="px-6 py-4">Test Name</th>
-                    <th className="px-6 py-4">Source / Location</th>
-                    <th className="px-6 py-4">Date</th>
-                    <th className="px-6 py-4">Result</th>
-                    <th className="px-6 py-4">Technician</th>
-                    <th className="px-6 py-4">Actions</th>
-                </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                {project.labTests.map((test) => (
-                    <tr key={test.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-mono text-slate-600">{test.sampleId}</td>
-                    <td className="px-6 py-4 font-medium text-slate-800 flex items-center gap-2">
-                        <Beaker size={16} className="text-purple-500" />
-                        {test.testName}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">{test.location}</td>
-                    <td className="px-6 py-4 text-slate-500">{test.date}</td>
-                    <td className="px-6 py-4">
-                        <span className={`
-                        px-2 py-1 rounded-full text-xs font-semibold
-                        ${test.result === 'Pass' ? 'bg-emerald-100 text-emerald-700' : 
-                            test.result === 'Fail' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}
-                        `}>
-                        {test.result}
-                        </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">{test.technician}</td>
-                    <td className="px-6 py-4">
-                      {test.result === 'Pending' ? (
-                        <div className="flex items-center gap-2">
-                           <button onClick={() => handleUpdateResult(test.id, 'Pass')} className="p-1 hover:bg-emerald-100 text-emerald-600 rounded" title="Mark Pass"><Check size={16}/></button>
-                           <button onClick={() => handleUpdateResult(test.id, 'Fail')} className="p-1 hover:bg-red-100 text-red-600 rounded" title="Mark Fail"><X size={16}/></button>
-                        </div>
-                      ) : (
-                        <button className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs font-medium">
-                           <FileText size={14} /> View
-                        </button>
-                      )}
-                    </td>
-                    </tr>
-                ))}
-                </tbody>
-            </table>
-        </div>
-        )}
-      </div>
+      <Card>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Sample ID</TableCell>
+                <TableCell>Test Name</TableCell>
+                <TableCell>Location</TableCell>
+                <TableCell>Date</TableCell>
+                <TableCell>Result</TableCell>
+                <TableCell>Technician</TableCell>
+                <TableCell align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {project.labTests.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
+                    <Box sx={{ opacity: 0.3 }}><Beaker size={40} /></Box>
+                    <Typography color="text.secondary" mt={1}>No lab tests recorded.</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                project.labTests.map((test) => (
+                  <LabTestRow
+                    key={test.id}
+                    test={test}
+                    handleUpdateResult={handleUpdateResult}
+                  />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Card>
 
-      {/* Add Test Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-             <h3 className="text-lg font-bold text-slate-800 mb-4">Register New Sample</h3>
-             <form onSubmit={handleAddTest} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Test Name</label>
-                  <input 
-                    required 
-                    type="text" 
-                    className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                    placeholder="e.g. Soil Compaction Test"
-                    value={newTest.testName}
-                    onChange={e => setNewTest({...newTest, testName: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Sample ID</label>
-                  <input 
-                    required 
-                    type="text" 
-                    className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                    placeholder="e.g. S-105"
-                    value={newTest.sampleId}
-                    onChange={e => setNewTest({...newTest, sampleId: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Source / Location</label>
-                  <input 
-                    required 
-                    type="text" 
-                    className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                    placeholder="e.g. Borrow Pit A / Ch 10+500"
-                    value={newTest.location}
-                    onChange={e => setNewTest({...newTest, location: e.target.value})}
-                  />
-                </div>
-                <div className="flex justify-end gap-3 pt-4">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancel</button>
-                  <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium">Register</button>
-                </div>
-             </form>
-          </div>
-        </div>
-      )}
-    </div>
+      <Dialog open={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle fontWeight="bold">Register New Sample</DialogTitle>
+        <DialogContent>
+            <Box component="form" onSubmit={handleAddTest} sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField autoFocus label="Test Name" fullWidth required value={newTest.testName} onChange={e => setNewTest({...newTest, testName: e.target.value})} />
+                <TextField label="Sample ID" fullWidth required value={newTest.sampleId} onChange={e => setNewTest({...newTest, sampleId: e.target.value})} />
+                <TextField label="Source / Location" fullWidth required value={newTest.location} onChange={e => setNewTest({...newTest, location: e.target.value})} />
+            </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsModalOpen(false)}>Cancel</Button>
+          <Button onClick={handleAddTest} variant="contained">Register</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

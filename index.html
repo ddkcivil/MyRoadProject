@@ -1,34 +1,82 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MyRoad Project</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet for OpenStreetMap -->
+    <link rel="stylesheet" href="/public/css/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
     <style>
+      :root {
+        --primary: #3c3d69; /* Aligned with theme.palette.primary.main */
+        --bg-slate: #c4bccd; /* Aligned with theme.palette.background.default */
+      }
       body {
         font-family: 'Inter', sans-serif;
+        background-color: var(--bg-slate);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        overflow-y: hidden; /* App handles scrolling */
       }
-      /* Custom Scrollbar for tables */
+      
+      /* Smooth scrolling for inner containers */
+      * {
+        scroll-behavior: smooth;
+      }
+
+      /* Custom Scrollbar */
       ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f5f9;
+        background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 4px;
+        background: rgb(220, 220, 220); /* Custom grey for scrollbar, close to MUI grey */
+        border-radius: 10px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
+        background: rgb(150, 150, 150); /* Darker custom grey for scrollbar hover */
+      }
+
+      /* Leaflet overrides for cleaner look */
+      .leaflet-container {
+        font-family: 'Inter', sans-serif;
+      }
+      
+      /* Utilities */
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(226, 232, 240, 0.8);
       }
     </style>
-  </head>
-  <body class="bg-slate-50 text-slate-900 antialiased">
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
+    "@mui/material": "https://aistudiocdn.com/@mui/material@^5.15.0",
+    "@emotion/react": "https://aistudiocdn.com/@emotion/react@^11.11.0",
+    "@emotion/styled": "https://aistudiocdn.com/@emotion/styled@^11.11.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

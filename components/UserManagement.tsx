@@ -3,14 +3,71 @@ import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { MOCK_USERS } from '../constants';
 import { UserPlus, Trash2, Mail, Shield } from 'lucide-react';
+import {
+    Box,
+    Typography,
+    Button,
+    Card,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Avatar,
+    Chip,
+    IconButton,
+    Tooltip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel
+} from '@mui/material';
+import ConfirmDialog from './ConfirmDialog'; // Import ConfirmDialog
+import { useNotification } from './NotificationContext'; // Import useNotification
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>(MOCK_USERS);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', role: UserRole.SITE_ENGINEER });
 
+  const [confirmOpen, setConfirmOpen] = useState(false); // State for ConfirmDialog
+  const [itemToDeleteId, setItemToDeleteId] = useState<string | null>(null); // State for ID of item to delete
+  const { showNotification } = useNotification(); // Use notification hook
+
+  // Validation states
+  const [nameError, setNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
+
+  const validateForm = () => {
+    let isValid = true;
+    setNameError('');
+    setEmailError('');
+
+    if (!newUser.name.trim()) {
+      setNameError('Full Name is required');
+      isValid = false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!newUser.email.trim() || !emailRegex.test(newUser.email)) {
+      setEmailError('Valid Email is required');
+      isValid = false;
+    }
+
+    return isValid;
+  };
+
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) {
+      return;
+    }
     const user: User = {
         id: `u-${Date.now()}`,
         name: newUser.name,
@@ -20,98 +77,146 @@ const UserManagement: React.FC = () => {
     setUsers([...users, user]);
     setIsModalOpen(false);
     setNewUser({ name: '', email: '', role: UserRole.SITE_ENGINEER });
+    setNameError(''); // Clear errors on successful submission
+    setEmailError('');
+    showNotification("User added successfully!", "success");
   };
 
-  const removeUser = (id: string) => {
-      setUsers(users.filter(u => u.id !== id));
+  const removeUserClick = (id: string) => {
+      setItemToDeleteId(id);
+      setConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+      if (itemToDeleteId) {
+          setUsers(users.filter(u => u.id !== itemToDeleteId));
+          showNotification("User removed successfully!", "success");
+          setItemToDeleteId(null);
+          setConfirmOpen(false);
+      }
   };
 
   return (
-    <div className="space-y-6">
-       <div className="flex justify-between items-center">
+    <Box>
+       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">User Management</h2>
-          <p className="text-slate-500 text-sm">Manage system access and roles</p>
+          <Typography variant="h4" fontWeight="bold">User Management</Typography>
+          <Typography variant="subtitle1" color="text.secondary">Manage system access and roles</Typography>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium"
-        >
-          <UserPlus size={18} /> Add User
-        </button>
-      </div>
+        <Button variant="contained" startIcon={<UserPlus />} onClick={() => setIsModalOpen(true)}>
+          Add User
+        </Button>
+      </Box>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
-                  <tr>
-                      <th className="px-6 py-4">Name</th>
-                      <th className="px-6 py-4">Role</th>
-                      <th className="px-6 py-4">Email</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                  {users.map(user => (
-                      <tr key={user.id} className="hover:bg-slate-50">
-                          <td className="px-6 py-4 font-medium text-slate-800 flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs">
-                                  {user.name.charAt(0)}
-                              </div>
-                              {user.name}
-                          </td>
-                          <td className="px-6 py-4">
-                              <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
-                                 <Shield size={12}/> {user.role}
-                              </span>
-                          </td>
-                          <td className="px-6 py-4 text-slate-500 flex items-center gap-2">
-                              <Mail size={14} /> {user.email}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                              <button onClick={() => removeUser(user.id)} className="text-slate-400 hover:text-red-600 p-1 transition-colors">
-                                  <Trash2 size={16} />
-                              </button>
-                          </td>
-                      </tr>
-                  ))}
-              </tbody>
-          </table>
-      </div>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-             <h3 className="text-lg font-bold text-slate-800 mb-4">Add New User</h3>
-             <form onSubmit={handleAddUser} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                  <input required type="text" className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                    value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                  <input required type="email" className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                    value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-                  <select className="w-full border border-slate-300 rounded-lg p-2 text-sm"
-                    value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value as UserRole})}>
-                      {Object.values(UserRole).map(role => (
-                          <option key={role} value={role}>{role}</option>
+      <Card>
+          <TableContainer>
+              <Table>
+                  <TableHead>
+                      <TableRow>
+                          <TableCell>Name</TableCell>
+                          <TableCell>Role</TableCell>
+                          <TableCell>Email</TableCell>
+                          <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                  </TableHead>
+                  <TableBody>
+                      {users.map(user => (
+                          <TableRow hover key={user.id}>
+                              <TableCell>
+                                  <Box display="flex" alignItems="center" gap={2}>
+                                      <Avatar>{user.name.charAt(0)}</Avatar>
+                                      <Typography variant="body2" fontWeight="medium">{user.name}</Typography>
+                                  </Box>
+                              </TableCell>
+                              <TableCell>
+                                  <Chip icon={<Shield size={16} />} label={user.role} size="small" color="primary" variant="outlined" />
+                              </TableCell>
+                              <TableCell>
+                                  <Box display="flex" alignItems="center" gap={1} color="text.secondary">
+                                      <Mail size={16} /> 
+                                      <Typography variant="body2">{user.email}</Typography>
+                                  </Box>
+                              </TableCell>
+                              <TableCell align="right">
+                                  <Tooltip title="Remove User">
+                                      <IconButton 
+                                          onClick={() => removeUserClick(user.id)} 
+                                          size="small" 
+                                          aria-label="Remove user"
+                                          sx={{ 
+                                            minWidth: { xs: 44, md: 'auto' },
+                                            minHeight: { xs: 44, md: 'auto' }
+                                          }}
+                                      >
+                                          <Trash2 size={16} />
+                                      </IconButton>
+                                  </Tooltip>
+                              </TableCell>
+                          </TableRow>
                       ))}
-                  </select>
-                </div>
-                <div className="flex justify-end gap-3 pt-4">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancel</button>
-                  <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">Add User</button>
-                </div>
-             </form>
-          </div>
-        </div>
-      )}
-    </div>
+                  </TableBody>
+              </Table>
+          </TableContainer>
+      </Card>
+
+      <Dialog open={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle fontWeight="bold">Add New User</DialogTitle>
+        <DialogContent>
+            <Box component="form" onSubmit={handleAddUser} sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField 
+                  autoFocus 
+                  label="Full Name" 
+                  fullWidth 
+                  required 
+                  value={newUser.name} 
+                  onChange={e => setNewUser({...newUser, name: e.target.value})} 
+                  onBlur={validateForm} // Validate on blur
+                  error={!!nameError}
+                  helperText={nameError}
+                />
+                <TextField 
+                  label="Email" 
+                  type="email" 
+                  fullWidth 
+                  required 
+                  value={newUser.email} 
+                  onChange={e => setNewUser({...newUser, email: e.target.value})} 
+                  onBlur={validateForm} // Validate on blur
+                  error={!!emailError}
+                  helperText={emailError}
+                />
+                <FormControl fullWidth>
+                  <InputLabel>Role</InputLabel>
+                  <Select
+                    value={newUser.role}
+                    label="Role"
+                    onChange={e => setNewUser({...newUser, role: e.target.value as UserRole})}
+                  >
+                      {Object.values(UserRole).map(role => (
+                          <MenuItem key={role} value={role}>{role}</MenuItem>
+                      ))}
+                  </Select>
+                </FormControl>
+            </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsModalOpen(false)}>Cancel</Button>
+          <Button onClick={handleAddUser} variant="contained">Add User</Button>
+        </DialogActions>
+      </Dialog>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Remove User"
+        message="Are you sure you want to remove this user? This action cannot be undone."
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+            setConfirmOpen(false);
+            setItemToDeleteId(null);
+            showNotification("User removal cancelled.", "info");
+        }}
+      />
+    </Box>
   );
 };
 

@@ -2,6 +2,33 @@
 import React, { useState } from 'react';
 import { Project, ScheduleTask, UserRole } from '../types';
 import { CalendarClock, Plus, Edit2, Trash2, X, Check, AlertTriangle, Clock } from 'lucide-react';
+import {
+    Box,
+    Typography,
+    Button,
+    Grid,
+    Card,
+    CardContent,
+    Paper,
+    Chip,
+    IconButton,
+    Tooltip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    Avatar,
+    ChipProps,
+    CircularProgress
+} from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import ConfirmDialog from './ConfirmDialog'; // Import ConfirmDialog
+import { useNotification } from './NotificationContext'; // Import useNotification
 
 interface Props {
     project: Project;
@@ -9,39 +36,168 @@ interface Props {
     onProjectUpdate: (project: Project) => void;
 }
 
+// Define a type for the colors object that matches ChipPropsColorOverrides
+type StatusColor = ChipProps['color'];
+
+export const getStatusChip = (status: 'Completed' | 'Delayed' | 'On Track') => {
+    const colors: Record<typeof status, StatusColor> = {
+        'Completed': 'success',
+        'Delayed': 'error',
+        'On Track': 'info'
+    };
+    return <Chip label={status} color={colors[status]} size="small" />;
+};
+
+export const getPosition = (start: string, end: string, minDate: number, maxDate: number, totalDuration: number) => {
+    const s = new Date(start).getTime();
+    const e = new Date(end).getTime();
+
+    // Calculate effective start and end, clamping them within the minDate and maxDate
+    const effectiveStart = Math.max(s, minDate);
+    const effectiveEnd = Math.min(e, maxDate);
+
+    const left = ((effectiveStart - minDate) / totalDuration) * 100;
+    const width = ((effectiveEnd - effectiveStart) / totalDuration) * 100;
+
+    return { left: `${Math.max(0, left)}%`, width: `${Math.max(0.5, width)}%` };
+};
+
+interface ScheduleTaskItemProps {
+    task: ScheduleTask;
+    canEdit: boolean;
+    handleOpenModal: (task?: ScheduleTask) => void;
+    handleDeleteClick: (id: string) => void;
+    getPosition: (start: string, end: string, minDate: number, maxDate: number, totalDuration: number) => { left: string, width: string };
+    theme: any; // Pass theme for color
+    minDate: number;
+    maxDate: number;
+    totalDuration: number;
+}
+
+const ScheduleTaskItem: React.FC<ScheduleTaskItemProps> = React.memo(({
+    task,
+    canEdit,
+    handleOpenModal,
+    handleDeleteClick,
+    getPosition,
+    theme,
+    minDate,
+    maxDate,
+    totalDuration
+}) => {
+    const pos = getPosition(task.startDate, task.endDate, minDate, maxDate, totalDuration);
+    const color = task.status === 'Completed' ? 'success.main' : task.status === 'Delayed' ? 'error.main' : 'primary.main';
+
+    return (
+        <Box key={task.id} sx={{ p: 2, '&:hover': { bgcolor: 'action.hover' } }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                <Box>
+                    <Typography variant="subtitle1" fontWeight="bold">{task.name}</Typography>
+                    <Typography variant="body2" color="text.secondary">{task.startDate} → {task.endDate}</Typography>
+                </Box>
+                <Box display="flex" alignItems="center" gap={1}>
+                    {getStatusChip(task.status)}
+                    <Chip label={`${task.progress}%`} size="small" />
+                    {canEdit && (
+                        <>
+                            <Tooltip title="Edit"><IconButton size="small" onClick={() => handleOpenModal(task)} aria-label="Edit task" sx={{ minWidth: { xs: 44, md: 'auto' }, minHeight: { xs: 44, md: 'auto' } }}><Edit2 size={16} /></IconButton></Tooltip>
+                            <Tooltip title="Delete"><IconButton size="small" onClick={() => handleDeleteClick(task.id)} aria-label="Delete task" sx={{ minWidth: { xs: 44, md: 'auto' }, minHeight: { xs: 44, md: 'auto' } }}><Trash2 size={16} /></IconButton></Tooltip>
+                        </>
+                    )}
+                </Box>
+            </Box>
+
+            <Box sx={{ width: '100%', height: 24, bgcolor: 'divider', borderRadius: 1, position: 'relative', overflow: 'hidden' }}>
+                <Box sx={{ position: 'absolute', height: '100%', left: pos.left, width: pos.width, bgcolor: 'action.selected', opacity: 0.3 }} />
+                <Box sx={{ position: 'absolute', height: '100%', left: pos.left, width: `calc(${pos.width} * ${task.progress / 100})`, bgcolor: color, borderRadius: 1 }} />
+            </Box>
+        </Box>
+    );
+});
+
+
 const ScheduleModule: React.FC<Props> = ({ project, userRole, onProjectUpdate }) => {
+  const theme = useTheme();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Partial<ScheduleTask>>({});
+  const [saving, setSaving] = useState(false); // Add saving state
+
+  // Validation states
+  const [taskNameError, setTaskNameError] = useState('');
+  const [startDateError, setStartDateError] = useState('');
+  const [endDateError, setEndDateError] = useState('');
+  const [progressError, setProgressError] = useState('');
+
+  const [confirmOpen, setConfirmOpen] = useState(false); // State for ConfirmDialog
+  const [itemToDeleteId, setItemToDeleteId] = useState<string | null>(null); // State for ID of item to delete
+  const { showNotification } = useNotification(); // Use notification hook
+
 
   const canEdit = [UserRole.PROJECT_MANAGER, UserRole.ADMIN, UserRole.SITE_ENGINEER].includes(userRole);
 
   const handleOpenModal = (task?: ScheduleTask) => {
-      if (task) {
-          setEditingTask(task);
-      } else {
-          setEditingTask({
-              name: '',
-              startDate: new Date().toISOString().split('T')[0],
-              endDate: '',
-              progress: 0,
-              status: 'On Track'
-          });
-      }
+      if (!canEdit) return;
+      setEditingTask(task || {
+          name: '',
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: '',
+          progress: 0,
+          status: 'On Track'
+      });
+      setTaskNameError('');
+      setStartDateError('');
+      setEndDateError('');
+      setProgressError('');
       setIsModalOpen(true);
+  };
+
+  const validateForm = () => {
+    let isValid = true;
+    setTaskNameError('');
+    setStartDateError('');
+    setEndDateError('');
+    setProgressError('');
+
+    if (!editingTask.name?.trim()) {
+      setTaskNameError('Task Name is required.');
+      isValid = false;
+    }
+
+    if (!editingTask.startDate) {
+      setStartDateError('Start Date is required.');
+      isValid = false;
+    }
+
+    if (!editingTask.endDate) {
+      setEndDateError('End Date is required.');
+      isValid = false;
+    } else if (editingTask.startDate && editingTask.endDate < editingTask.startDate) {
+      setEndDateError('End Date must be after Start Date.');
+      isValid = false;
+    }
+
+    if (editingTask.progress === undefined || isNaN(editingTask.progress) || editingTask.progress < 0 || editingTask.progress > 100) {
+      setProgressError('Progress must be a number between 0 and 100.');
+      isValid = false;
+    }
+
+    return isValid;
   };
 
   const handleSave = (e: React.FormEvent) => {
       e.preventDefault();
       
-      if (!editingTask.name || !editingTask.startDate || !editingTask.endDate) return;
+      if (!validateForm()) {
+          return;
+      }
+      setSaving(true); // Set saving to true
 
       let updatedSchedule: ScheduleTask[];
       
       if (editingTask.id) {
-          // Update
           updatedSchedule = project.schedule.map(t => t.id === editingTask.id ? { ...t, ...editingTask } as ScheduleTask : t);
+          showNotification("Task updated successfully!", "success");
       } else {
-          // Create
           const newTask: ScheduleTask = {
               id: `task-${Date.now()}`,
               name: editingTask.name!,
@@ -51,244 +207,208 @@ const ScheduleModule: React.FC<Props> = ({ project, userRole, onProjectUpdate })
               status: editingTask.status as any || 'On Track'
           };
           updatedSchedule = [...project.schedule, newTask];
+          showNotification("Task added successfully!", "success");
       }
       
-      // Sort by start date
       updatedSchedule.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
-      onProjectUpdate({
-          ...project,
-          schedule: updatedSchedule
-      });
+      onProjectUpdate({ ...project, schedule: updatedSchedule });
       setIsModalOpen(false);
+      setSaving(false); // Set saving to false
   };
 
-  const handleDelete = (id: string) => {
-      if(window.confirm("Delete this task?")) {
+  const handleDeleteClick = (id: string) => {
+      setItemToDeleteId(id);
+      setConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+      if (itemToDeleteId) {
           onProjectUpdate({
               ...project,
-              schedule: project.schedule.filter(t => t.id !== id)
+              schedule: project.schedule.filter(t => t.id !== itemToDeleteId)
           });
+          showNotification("Task deleted successfully!", "success");
+          setItemToDeleteId(null);
+          setConfirmOpen(false);
       }
   };
 
-  // Calculations for Gantt visualization
-  // Find min start and max end to define the range
   const dates = project.schedule.flatMap(t => [new Date(t.startDate).getTime(), new Date(t.endDate).getTime()]);
   const minDate = dates.length ? Math.min(...dates) : new Date().getTime();
   const maxDate = dates.length ? Math.max(...dates) : new Date().getTime() + (30 * 24 * 60 * 60 * 1000);
-  const totalDuration = maxDate - minDate || 1; // avoid divide by zero
-
-  const getPosition = (start: string, end: string) => {
-      const s = new Date(start).getTime();
-      const e = new Date(end).getTime();
-      const left = ((s - minDate) / totalDuration) * 100;
-      const width = ((e - s) / totalDuration) * 100;
-      return { left: `${Math.max(0, left)}%`, width: `${Math.max(0.5, width)}%` };
-  };
-
+  const totalDuration = maxDate - minDate || 1;
+  
   return (
-      <div className="space-y-6">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <Box>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
               <div>
-                  <h2 className="text-2xl font-bold text-slate-800">Master Work Schedule</h2>
-                  <p className="text-slate-500 text-sm">Project Timeline & Critical Path</p>
+                  <Typography variant="h4" fontWeight="bold">Master Work Schedule</Typography>
+                  <Typography variant="subtitle1" color="text.secondary">Project Timeline & Critical Path</Typography>
               </div>
               {canEdit && (
-                  <button 
-                      onClick={() => handleOpenModal()}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors"
-                  >
-                      <Plus size={18} /> Add Task
-                  </button>
+                  <Button variant="contained" startIcon={<Plus />} onClick={() => handleOpenModal()}>
+                      Add Task
+                  </Button>
               )}
-          </div>
+          </Box>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Clock size={20}/></div>
-                  <div>
-                      <div className="text-2xl font-bold text-slate-800">{project.schedule.length}</div>
-                      <div className="text-xs text-slate-500">Total Tasks</div>
-                  </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
-                  <div className="p-2 bg-green-100 text-green-600 rounded-lg"><Check size={20}/></div>
-                  <div>
-                      <div className="text-2xl font-bold text-slate-800">{project.schedule.filter(t => t.status === 'Completed').length}</div>
-                      <div className="text-xs text-slate-500">Completed</div>
-                  </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
-                  <div className="p-2 bg-red-100 text-red-600 rounded-lg"><AlertTriangle size={20}/></div>
-                  <div>
-                      <div className="text-2xl font-bold text-slate-800">{project.schedule.filter(t => t.status === 'Delayed').length}</div>
-                      <div className="text-xs text-slate-500">Delayed</div>
-                  </div>
-              </div>
-          </div>
+          <Grid container spacing={3} mb={3}>
+              <Grid item xs={12} sm={4}>
+                  <Card>
+                      <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Avatar sx={{ bgcolor: 'info.light', color: 'info.main' }}><Clock /></Avatar>
+                          <Box>
+                              <Typography variant="h4" fontWeight="bold">{project.schedule.length}</Typography>
+                              <Typography variant="body2" color="text.secondary">Total Tasks</Typography>
+                          </Box>
+                      </CardContent>
+                  </Card>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                  <Card>
+                      <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Avatar sx={{ bgcolor: 'success.light', color: 'success.main' }}><Check /></Avatar>
+                          <Box>
+                              <Typography variant="h4" fontWeight="bold">{project.schedule.filter(t => t.status === 'Completed').length}</Typography>
+                              <Typography variant="body2" color="text.secondary">Completed</Typography>
+                          </Box>
+                      </CardContent>
+                  </Card>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                  <Card>
+                      <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Avatar sx={{ bgcolor: 'error.light', color: 'error.main' }}><AlertTriangle /></Avatar>
+                          <Box>
+                              <Typography variant="h4" fontWeight="bold">{project.schedule.filter(t => t.status === 'Delayed').length}</Typography>
+                              <Typography variant="body2" color="text.secondary">Delayed</Typography>
+                          </Box>
+                      </CardContent>
+                  </Card>
+              </Grid>
+          </Grid>
 
-          {/* Gantt / List View */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <div>Task Name</div>
-                  <div className="text-right">Timeline / Action</div>
-              </div>
+          <Card>
+              <Paper elevation={0} sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+                  <Typography variant="subtitle2" fontWeight="bold">Gantt View</Typography>
+              </Paper>
               
-              <div className="divide-y divide-slate-100">
+              <Box sx={{ divideY: 1, borderColor: 'divider' }}>
                   {project.schedule.length === 0 ? (
-                      <div className="p-8 text-center text-slate-400 italic">No tasks scheduled. Add a task to get started.</div>
+                      <Box p={8} textAlign="center" color="text.secondary">No tasks scheduled.</Box>
                   ) : (
-                      project.schedule.map(task => {
-                          const pos = getPosition(task.startDate, task.endDate);
-                          const colorClass = task.status === 'Completed' ? 'bg-green-500' : task.status === 'Delayed' ? 'bg-red-500' : 'bg-blue-500';
-                          
-                          return (
-                              <div key={task.id} className="group hover:bg-slate-50 transition-colors p-4">
-                                  <div className="flex flex-col md:flex-row gap-4 mb-3">
-                                      <div className="flex-1">
-                                          <div className="flex items-center gap-2">
-                                              <span className="font-semibold text-slate-800">{task.name}</span>
-                                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                                                  task.status === 'Completed' ? 'bg-green-50 text-green-600 border-green-200' :
-                                                  task.status === 'Delayed' ? 'bg-red-50 text-red-600 border-red-200' :
-                                                  'bg-blue-50 text-blue-600 border-blue-200'
-                                              }`}>{task.status}</span>
-                                          </div>
-                                          <div className="text-xs text-slate-500 flex gap-3 mt-1">
-                                              <span>{task.startDate} → {task.endDate}</span>
-                                              <span className="font-medium text-slate-700">{task.progress}% Done</span>
-                                          </div>
-                                      </div>
-                                      
-                                      {canEdit && (
-                                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                              <button onClick={() => handleOpenModal(task)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit">
-                                                  <Edit2 size={16} />
-                                              </button>
-                                              <button onClick={() => handleDelete(task.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
-                                                  <Trash2 size={16} />
-                                              </button>
-                                          </div>
-                                      )}
-                                  </div>
-
-                                  {/* Bar Container */}
-                                  <div className="w-full h-6 bg-slate-100 rounded-full relative overflow-hidden">
-                                      {/* Background placeholder for entire duration */}
-                                      <div 
-                                          className="absolute top-1 bottom-1 bg-slate-200 rounded opacity-30"
-                                          style={{ left: pos.left, width: pos.width }}
-                                      ></div>
-                                      
-                                      {/* Actual progress bar */}
-                                      <div 
-                                          className={`absolute top-1 bottom-1 rounded shadow-sm flex items-center justify-end px-2 text-[10px] text-white font-medium transition-all ${colorClass}`}
-                                          style={{ 
-                                              left: pos.left, 
-                                              width: `calc(${pos.width} * ${task.progress / 100})`,
-                                              minWidth: task.progress > 0 ? '4px' : '0' 
-                                          }}
-                                      >
-                                      </div>
-                                  </div>
-                              </div>
-                          );
-                      })
+                      project.schedule.map(task => (
+                        <ScheduleTaskItem
+                            key={task.id}
+                            task={task}
+                            canEdit={canEdit}
+                            handleOpenModal={handleOpenModal}
+                            handleDeleteClick={handleDeleteClick}
+                            getPosition={getPosition}
+                            theme={theme}
+                            minDate={minDate}
+                            maxDate={maxDate}
+                            totalDuration={totalDuration}
+                        />
+                      ))
                   )}
-              </div>
-              
-              {/* Timeline Labels (Simple) */}
-              <div className="p-2 bg-slate-50 border-t border-slate-100 flex justify-between text-[10px] text-slate-400 font-mono">
-                  <span>{new Date(minDate).toLocaleDateString()}</span>
-                  <span>{new Date(minDate + totalDuration / 2).toLocaleDateString()}</span>
-                  <span>{new Date(maxDate).toLocaleDateString()}</span>
-              </div>
-          </div>
+              </Box>
+          </Card>
 
-          {/* Modal */}
-          {isModalOpen && (
-              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                  <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-                      <div className="flex justify-between items-center mb-6">
-                          <h3 className="text-xl font-bold text-slate-800">{editingTask.id ? 'Edit Task' : 'Add New Task'}</h3>
-                          <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
-                      </div>
-
-                      <form onSubmit={handleSave} className="space-y-4">
-                          <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-1">Task Name</label>
-                              <input 
-                                  required 
-                                  type="text" 
-                                  value={editingTask.name || ''} 
-                                  onChange={e => setEditingTask({...editingTask, name: e.target.value})}
-                                  className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                  placeholder="e.g. Foundation Excavation"
+          <Dialog open={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidth="sm" fullWidth>
+              <DialogTitle fontWeight="bold">{editingTask.id ? 'Edit Task' : 'Add New Task'}</DialogTitle>
+              <DialogContent>
+                  <Box component="form" onSubmit={handleSave} sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <TextField
+                          label="Task Name"
+                          fullWidth
+                          required
+                          value={editingTask.name || ''} 
+                          onChange={e => setEditingTask({...editingTask, name: e.target.value})}
+                          // onBlur={validateForm} // commented out to avoid conflict
+                          // error={!!taskNameError} // commented out to avoid conflict
+                          // helperText={taskNameError} // commented out to avoid conflict
+                      />
+                      <Grid container spacing={2}>
+                          <Grid item xs={12} sm={6}>
+                              <TextField 
+                                  label="Start Date"
+                                  type="date" 
+                                  fullWidth
+                                  required
+                                  InputLabelProps={{ shrink: true }}
+                                  value={editingTask.startDate || ''} 
+                                  onChange={e => setEditingTask({...editingTask, startDate: e.target.value})}
+                                  // onBlur={validateForm} // commented out to avoid conflict
+                                  // error={!!startDateError} // commented out to avoid conflict
+                                  // helperText={startDateError} // commented out to avoid conflict
                               />
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
-                                  <input 
-                                      required 
-                                      type="date" 
-                                      value={editingTask.startDate || ''} 
-                                      onChange={e => setEditingTask({...editingTask, startDate: e.target.value})}
-                                      className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                  />
-                              </div>
-                              <div>
-                                  <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
-                                  <input 
-                                      required 
-                                      type="date" 
-                                      value={editingTask.endDate || ''} 
-                                      onChange={e => setEditingTask({...editingTask, endDate: e.target.value})}
-                                      className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                  />
-                              </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                  <label className="block text-sm font-medium text-slate-700 mb-1">Progress (%)</label>
-                                  <input 
-                                      type="number" 
-                                      min="0" max="100"
-                                      value={editingTask.progress ?? 0} 
-                                      onChange={e => setEditingTask({...editingTask, progress: Number(e.target.value)})}
-                                      className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                  />
-                              </div>
-                              <div>
-                                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                                  <select 
-                                      value={editingTask.status || 'On Track'} 
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                              <TextField
+                                  label="End Date"
+                                  type="date"
+                                  fullWidth
+                                  required
+                                  InputLabelProps={{ shrink: true }}
+                                  value={editingTask.endDate || ''} 
+                                  onChange={e => setEditingTask({...editingTask, endDate: e.target.value})}
+                                  // onBlur={validateForm} // commented out to avoid conflict
+                                  // error={!!endDateError} // commented out to avoid conflict
+                                  // helperText={endDateError} // commented out to avoid conflict
+                              />
+                          </Grid>
+                      </Grid>
+                      <Grid container spacing={2}>
+                          <Grid item xs={12} sm={6}>
+                              <TextField
+                                  label="Progress (%)"
+                                  type="number"
+                                  fullWidth
+                                  InputProps={{ inputProps: { min: 0, max: 100 } }}
+                                  value={editingTask.progress ?? 0} 
+                                  onChange={e => setEditingTask({...editingTask, progress: Number(e.target.value)})}
+                                  // onBlur={validateForm} // commented out to avoid conflict
+                                  // error={!!progressError} // commented out to avoid conflict
+                                  // helperText={progressError} // commented out to avoid conflict
+                              />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                              <FormControl fullWidth>
+                                  <InputLabel>Status</InputLabel>
+                                  <Select
+                                      value={editingTask.status || 'On Track'}
+                                      label="Status"
                                       onChange={e => setEditingTask({...editingTask, status: e.target.value as any})}
-                                      className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                                   >
-                                      <option value="On Track">On Track</option>
-                                      <option value="Delayed">Delayed</option>
-                                      <option value="Completed">Completed</option>
-                                  </select>
-                              </div>
-                          </div>
+                                      <MenuItem value="On Track">On Track</MenuItem>
+                                      <MenuItem value="Delayed">Delayed</MenuItem>
+                                      <MenuItem value="Completed">Completed</MenuItem>
+                                  </Select>
+                              </FormControl>
+                          </Grid>
+                      </Grid>
+                  </Box>
+              </DialogContent>
+              <DialogActions>
+                  <Button onClick={() => setIsModalOpen(false)} disabled={saving}>Cancel</Button>
+                  <Button onClick={handleSave} variant="contained" disabled={saving} startIcon={saving ? <CircularProgress size={20} /> : <Check />}>Save</Button>
+              </DialogActions>
+          </Dialog>
 
-                          <div className="pt-4 flex justify-end gap-3">
-                              <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancel</button>
-                              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium shadow-md">
-                                  Save Task
-                              </button>
-                          </div>
-                      </form>
-                  </div>
-              </div>
-          )}
-      </div>
+          <ConfirmDialog
+            open={confirmOpen}
+            title="Delete Schedule Task"
+            message="Are you sure you want to delete this schedule task? This action cannot be undone."
+            onConfirm={handleConfirmDelete}
+            onCancel={() => {
+                setConfirmOpen(false);
+                setItemToDeleteId(null);
+                showNotification("Deletion cancelled.", "info");
+            }}
+          />
+      </Box>
   );
 };
 

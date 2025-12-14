@@ -4,13 +4,15 @@ export enum UserRole {
   SITE_ENGINEER = 'Site Engineer',
   SUPERVISOR = 'Supervisor',
   LAB_TECHNICIAN = 'Lab Technician',
-  ADMIN = 'Admin'
+  ADMIN = 'Admin',
+  GUEST = 'Guest'
 }
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string; // Added for WhatsApp integration
   role: UserRole;
   avatar?: string;
 }
@@ -45,7 +47,7 @@ export enum WorkCategory {
   DRAINAGE = 'Drainage',
   STRUCTURES = 'Structures',
   FURNITURE = 'Road Furniture',
-  FOOTPATH = 'Foothpath',
+  FOOTPATH = 'Footpath',
   GENERAL = 'General',
   PROVISIONAL_SUM = 'Provisional Sum'
 }
@@ -70,6 +72,7 @@ export interface RFI {
   status: RFIStatus;
   requestedBy: string;
   inspectionDate: string;
+  attachments?: string[];
 }
 
 export interface LabTest {
@@ -139,11 +142,14 @@ export interface ProjectDocument {
   id: string;
   name: string;
   type: 'PDF' | 'DOCX' | 'XLSX' | 'IMAGE';
+  folder: string; // e.g., "Contracts", "Drawings"
   date: string;
   size: string;
+  uploadedBy?: string;
   refNo?: string;
   subject?: string;
   content?: string; // Base64 or URL for preview
+  tags?: string[];
 }
 
 export interface DailyWorkItem {
@@ -184,6 +190,54 @@ export interface PreConstructionTask {
   logs?: PreConstructionLog[];
 }
 
+// --- STRUCTURES MODULE TYPES ---
+export enum StructureType {
+  PIPE_CULVERT = 'Pipe Culvert',
+  BOX_CULVERT = 'Box Culvert',
+  SLAB_CULVERT = 'Slab Culvert',
+  RETAINING_WALL = 'Retaining Wall',
+  MAJOR_BRIDGE = 'Major Bridge',
+  MINOR_BRIDGE = 'Minor Bridge',
+  VUP = 'VUP',
+  PUP = 'PUP',
+  FLYOVER = 'Flyover',
+  DRAINAGE_LINED = 'Drainage (Lined)',
+  DRAINAGE_UNLINED = 'Drainage (Unlined)',
+  FOOTPATH = 'Footpath',
+  PAVEMENT_FLEXIBLE = 'Pavement (Flexible)',
+  PAVEMENT_RIGID = 'Pavement (Rigid)',
+  ROAD_SAFETY_SIGNAGE = 'Road Safety (Signage)',
+  ROAD_SAFETY_MARKING = 'Road Safety (Marking)',
+  ROAD_SAFETY_BARRIERS = 'Road Safety (Barriers)'
+}
+
+export interface StructureComponent {
+  id: string;
+  name: string; // e.g., "Foundation Excavation", "PCC M15", "Rebar", "Formwork", "RCC M25", "Pipe Laying"
+  unit: string;
+  totalQuantity: number;
+  completedQuantity: number;
+}
+
+export interface StructureAsset {
+  id: string;
+  name: string; // e.g. "Hume Pipe Culvert at Ch 12+500"
+  type: StructureType;
+  size?: string; // New field for dimensions (e.g. "900mm NP4", "2x2 m")
+  location: string; // Chainage
+  status: 'Not Started' | 'In Progress' | 'Completed';
+  components: StructureComponent[];
+}
+
+export interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string; // 'general' or user ID
+  content: string;
+  timestamp: string; // ISO string
+  read: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -206,4 +260,5 @@ export interface Project {
   documents: ProjectDocument[];
   dailyReports: DailyReport[];
   preConstruction: PreConstructionTask[];
+  structures?: StructureAsset[]; // New field for detailed structure tracking
 }

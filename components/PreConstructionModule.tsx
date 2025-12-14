@@ -1,72 +1,190 @@
-
 import React, { useState } from 'react';
 import { Project, PreConstructionTask } from '../types';
-import { CheckCircle, Clock, AlertCircle, Plus, Calendar, BellRing, Target } from 'lucide-react';
+import { CheckCircle, Clock, AlertCircle, Plus, Calendar, BellRing, Target, Trash2 } from 'lucide-react';
+import {
+    Box,
+    Typography,
+    Button,
+    Grid,
+    Card,
+    CardContent,
+    CardActions,
+    Paper,
+    Chip,
+    IconButton,
+    Tooltip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    LinearProgress,
+    CircularProgress
+} from '@mui/material';
+import ConfirmDialog from './ConfirmDialog'; // Import ConfirmDialog
+import { useNotification } from './NotificationContext'; // Import useNotification
 
 interface Props {
   project: Project;
   onProjectUpdate: (project: Project) => void;
 }
 
+const getStatusChip = (status: string) => {
+    if (status === 'Completed') return <Chip label="Completed" color="success" size="small" />;
+    if (status === 'In Progress') return <Chip label="In Progress" color="info" size="small" />;
+    return <Chip label="Pending" color="warning" size="small" />;
+};
+
+interface PreConstructionTaskCardProps {
+    task: PreConstructionTask;
+    handleDeleteTaskClick: (id: string) => void;
+    setSelectedTaskForTrack: (id: string | null) => void;
+    setIsTrackModalOpen: (isOpen: boolean) => void;
+}
+
+const PreConstructionTaskCard: React.FC<PreConstructionTaskCardProps> = React.memo(({
+    task,
+    handleDeleteTaskClick,
+    setSelectedTaskForTrack,
+    setIsTrackModalOpen
+}) => {
+    return (
+        <Grid item xs={12} md={6} lg={4}>
+            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <CardContent>
+                    <Box display="flex" justifyContent="space-between">
+                        <Typography variant="caption" color="text.secondary">{task.category}</Typography>
+                        {getStatusChip(task.status)}
+                    </Box>
+                    <Typography variant="h6" fontWeight="bold" my={1}>{task.description}</Typography>
+                    <Box display="flex" alignItems="center" gap={1} color="text.secondary" mb={2}><Calendar size={16} /><Typography variant="body2">{task.estStartDate} → {task.estEndDate}</Typography></Box>
+                    <Box mb={1}><LinearProgress variant="determinate" value={task.progress || 0} /><Typography variant="caption" align="right" display="block">{task.progress || 0}%</Typography></Box>
+                    {task.remarks && <Paper variant="outlined" sx={{ p: 1, bgcolor: 'grey.100' }}><Typography variant="caption" fontStyle="italic">"{task.remarks}"</Typography></Paper>}
+                </CardContent>
+                <Box flexGrow={1} />
+                <Box sx={{ justifyContent: 'space-between', padding: 2 }}>
+                    <Button size="small" startIcon={<Target />} onClick={() => { setSelectedTaskForTrack(task.id); setIsTrackModalOpen(true); }}>Track Progress</Button>
+                    <IconButton 
+                        size="small" 
+                        onClick={() => handleDeleteTaskClick(task.id)} 
+                        aria-label="Delete activity"
+                        sx={{ 
+                          minWidth: { xs: 44, md: 'auto' },
+                          minHeight: { xs: 44, md: 'auto' }
+                        }}
+                    >
+                        <Trash2 size={16} />
+                    </IconButton>
+                </Box>
+            </Card>
+        </Grid>
+    );
+});
+
+
 const PreConstructionModule: React.FC<Props> = ({ project, onProjectUpdate }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
   const [selectedTaskForTrack, setSelectedTaskForTrack] = useState<string | null>(null);
-  
-  // Forms
+  const [addingTask, setAddingTask] = useState(false); // Add addingTask state
+  const [trackingProgress, setTrackingProgress] = useState(false); // Declare trackingProgress here
+
   const [newTask, setNewTask] = useState<Partial<PreConstructionTask>>({
-    category: 'Survey',
-    status: 'Pending',
-    description: '',
-    remarks: '',
-    estStartDate: '',
-    estEndDate: '',
-    progress: 0
+    category: 'Survey', status: 'Pending', description: '', remarks: '', estStartDate: '', estEndDate: '', progress: 0
   });
 
   const [trackForm, setTrackForm] = useState({
-      date: new Date().toISOString().split('T')[0],
-      progressAdded: 0,
-      description: ''
+      date: new Date().toISOString().split('T')[0], progressAdded: 0, description: ''
   });
 
-  // --- Logic ---
+  const [confirmOpen, setConfirmOpen] = useState(false); // State for ConfirmDialog
+  const [itemToDeleteId, setItemToDeleteId] = useState<string | null>(null); // State for ID of item to delete
+  const { showNotification } = useNotification(); // Use notification hook
+
+  // Validation states for Add New Pre-Construction Activity Modal
+  const [descriptionError, setDescriptionError] = useState('');
+  const [estStartDateError, setEstStartDateError] = useState('');
+  const [estEndDateError, setEstEndDateError] = useState('');
+
+  const validateAddTaskForm = () => {
+    let isValid = true;
+    setDescriptionError('');
+    setEstStartDateError('');
+    setEstEndDateError('');
+
+    if (!newTask.description?.trim()) {
+      setDescriptionError('Description is required.');
+      isValid = false;
+    }
+    if (!newTask.estStartDate) {
+      setEstStartDateError('Estimated Start Date is required.');
+      isValid = false;
+    }
+    if (!newTask.estEndDate) {
+      setEstEndDateError('Estimated End Date is required.');
+      isValid = false;
+    } else if (newTask.estStartDate && newTask.estEndDate < newTask.estStartDate) {
+      setEstEndDateError('Estimated End Date cannot be before Start Date.');
+      isValid = false;
+    }
+    return isValid;
+  };
+
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateAddTaskForm()) {
+        return;
+    }
+    setAddingTask(true); // Set addingTask to true
     const task: PreConstructionTask = {
         id: `pre-${Date.now()}`,
         category: newTask.category as any,
         description: newTask.description || '',
         status: newTask.status as any,
-        targetDate: newTask.estEndDate || '', // Default target to end date
+        targetDate: newTask.estEndDate || '',
         estStartDate: newTask.estStartDate,
         estEndDate: newTask.estEndDate,
         progress: 0,
-        remarks: newTask.remarks || '',
+        remarks: newTask.remarks || '', // Add remarks here
         logs: []
     };
-    onProjectUpdate({
-        ...project,
-        preConstruction: [...project.preConstruction, task]
-    });
+    onProjectUpdate({ ...project, preConstruction: [...project.preConstruction, task] });
     setIsModalOpen(false);
     setNewTask({ category: 'Survey', status: 'Pending', description: '', remarks: '', estStartDate: '', estEndDate: '', progress: 0 });
+    setDescriptionError('');
+    setEstStartDateError('');
+    setEstEndDateError('');
+    showNotification("Pre-construction activity added successfully!", "success");
+    setAddingTask(false); // Set addingTask to false
+  };
+
+  const handleDeleteTaskClick = (id: string) => {
+      setItemToDeleteId(id);
+      setConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+      if (itemToDeleteId) {
+          onProjectUpdate({ ...project, preConstruction: project.preConstruction.filter(t => t.id !== itemToDeleteId) });
+          showNotification("Pre-construction activity deleted successfully!", "success");
+          setItemToDeleteId(null);
+          setConfirmOpen(false);
+      }
   };
 
   const handleTrackSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (!selectedTaskForTrack) return;
+      setTrackingProgress(true); // Set trackingProgress to true
       
       const updated = project.preConstruction.map(t => {
           if (t.id === selectedTaskForTrack) {
               const newProgress = Math.min(100, (t.progress || 0) + Number(trackForm.progressAdded));
-              const newLog = {
-                  date: trackForm.date,
-                  progressAdded: Number(trackForm.progressAdded),
-                  description: trackForm.description
-              };
-              const newStatus = newProgress === 100 ? 'Completed' : newProgress > 0 ? 'In Progress' : t.status;
-              return { ...t, progress: newProgress, status: newStatus, logs: [...(t.logs || []), newLog] };
+              return { ...t, progress: newProgress, status: newProgress === 100 ? 'Completed' : 'In Progress', logs: [...(t.logs || []), { date: trackForm.date, progressAdded: Number(trackForm.progressAdded), description: trackForm.description }] };
           }
           return t;
       });
@@ -74,189 +192,154 @@ const PreConstructionModule: React.FC<Props> = ({ project, onProjectUpdate }) =>
       onProjectUpdate({ ...project, preConstruction: updated as any });
       setIsTrackModalOpen(false);
       setTrackForm({ date: new Date().toISOString().split('T')[0], progressAdded: 0, description: '' });
+      showNotification("Progress updated successfully!", "success");
+      setTrackingProgress(false); // Set trackingProgress to false
   };
-
-  const getStatusColor = (status: string) => {
-      switch(status) {
-          case 'Completed': return 'bg-green-100 text-green-700';
-          case 'In Progress': return 'bg-blue-100 text-blue-700';
-          default: return 'bg-amber-100 text-amber-700';
-      }
-  };
-
+  
   const today = new Date().toISOString().split('T')[0];
   const dueTasks = project.preConstruction.filter(t => t.status !== 'Completed' && t.estEndDate && t.estEndDate <= today);
 
   return (
-    <div className="space-y-6">
-       
-       {/* Header with Notification */}
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <Box>
+       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Pre-Construction Activities</h2>
-          <p className="text-slate-500 text-sm">Land Acquisition, Clearances, and Surveys</p>
+          <Typography variant="h4" fontWeight="bold">Pre-Construction Activities</Typography>
+          <Typography variant="subtitle1" color="text.secondary">Land Acquisition, Clearances, and Surveys</Typography>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium"
-        >
-          <Plus size={18} /> Add Activity
-        </button>
-      </div>
+        <Button variant="contained" startIcon={<Plus />} onClick={() => setIsModalOpen(true)}>Add Activity</Button>
+      </Box>
 
-      {/* Daily Notification Banner */}
       {dueTasks.length > 0 && (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-start gap-3 text-orange-800">
-              <BellRing className="mt-0.5" size={20} />
-              <div>
-                  <h4 className="font-bold text-sm">Action Required: {dueTasks.length} Tasks Due or Overdue</h4>
-                  <ul className="mt-1 space-y-1 text-xs list-disc pl-4">
-                      {dueTasks.map(t => (
-                          <li key={t.id}>{t.description} (Due: {t.estEndDate})</li>
-                      ))}
+          <Paper sx={{ p: 2, mb: 3, bgcolor: 'warning.light', color: 'warning.dark', display: 'flex', gap: 2 }}>
+              <BellRing />
+              <Box>
+                  <Typography fontWeight="bold">Action Required: {dueTasks.length} Tasks Due or Overdue</Typography>
+                  <ul style={{ paddingLeft: 20, marginTop: 4 }}>
+                      {dueTasks.map(t => <li key={t.id}><Typography variant="body2">{t.description} (Due: {t.estEndDate})</Typography></li>)}
                   </ul>
-              </div>
-          </div>
+              </Box>
+          </Paper>
       )}
 
-      {/* Task Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <Grid container spacing={3}>
           {project.preConstruction.map(task => (
-              <div key={task.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative flex flex-col h-full">
-                  <div className={`absolute top-4 right-4 px-2 py-1 rounded-full text-xs font-bold ${getStatusColor(task.status)}`}>
-                      {task.status}
-                  </div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">{task.category}</div>
-                  <h3 className="font-semibold text-slate-800 mb-2">{task.description}</h3>
-                  
-                  <div className="space-y-2 mb-4 flex-1">
-                      <div className="text-xs text-slate-500 flex items-center gap-2">
-                          <Calendar size={14} /> Est: {task.estStartDate || 'N/A'} <span className="text-slate-300">→</span> {task.estEndDate || 'N/A'}
-                      </div>
-                      
-                      {/* Progress Bar */}
-                      <div>
-                          <div className="flex justify-between text-xs mb-1">
-                              <span className="font-medium text-slate-600">Progress</span>
-                              <span className="font-bold text-slate-800">{task.progress || 0}%</span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                              <div className="bg-blue-600 h-full rounded-full transition-all" style={{ width: `${task.progress || 0}%` }}></div>
-                          </div>
-                      </div>
-
-                      {task.remarks && (
-                        <div className="bg-slate-50 p-2 rounded text-xs text-slate-600 italic line-clamp-2">
-                            "{task.remarks}"
-                        </div>
-                      )}
-                  </div>
-                  
-                  <div className="pt-3 border-t border-slate-100 mt-auto">
-                      <button 
-                         onClick={() => { setSelectedTaskForTrack(task.id); setIsTrackModalOpen(true); }}
-                         className="w-full text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 py-2 rounded font-medium transition-colors flex items-center justify-center gap-2"
-                      >
-                          <Target size={14} /> Track Daily Progress
-                      </button>
-                  </div>
-              </div>
+              <PreConstructionTaskCard
+                  key={task.id}
+                  task={task}
+                  handleDeleteTaskClick={handleDeleteTaskClick}
+                  setSelectedTaskForTrack={setSelectedTaskForTrack}
+                  setIsTrackModalOpen={setIsTrackModalOpen}
+              />
           ))}
           {project.preConstruction.length === 0 && (
-              <div className="col-span-full p-12 text-center text-slate-400 italic bg-white rounded-xl border border-dashed border-slate-300">
-                  No pre-construction activities logged.
-              </div>
+              <Grid item xs={12}><Paper sx={{ p: 8, textAlign: 'center', borderStyle: 'dashed' }}><Typography color="text.secondary">No pre-construction activities logged.</Typography></Paper></Grid>
           )}
-      </div>
+      </Grid>
+      
+      {/* Modals */}
+      <Dialog open={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New Pre-Construction Activity</DialogTitle>
+        <DialogContent dividers>
+          <Box component="form" onSubmit={handleAddTask} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <FormControl fullWidth required>
+              <InputLabel>Category</InputLabel>
+              <Select value={newTask.category} label="Category" onChange={(e) => setNewTask({ ...newTask, category: e.target.value as any })}>
+                <MenuItem value="Survey">Survey</MenuItem>
+                <MenuItem value="Investigation">Investigation</MenuItem>
+                <MenuItem value="Land Acquisition">Land Acquisition</MenuItem>
+                <MenuItem value="Clearances">Clearances</MenuItem>
+                <MenuItem value="Utility Relocation">Utility Relocation</MenuItem>
+                <MenuItem value="Design">Design</MenuItem>
+                <MenuItem value="Approvals">Approvals</MenuItem>
+                <MenuItem value="Mobilization">Mobilization</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField 
+              label="Description" 
+              value={newTask.description} 
+              onChange={(e) => setNewTask({ ...newTask, description: e.target.value })} 
+              onBlur={validateAddTaskForm}
+              error={!!descriptionError}
+              helperText={descriptionError}
+              fullWidth 
+              required 
+              multiline 
+              rows={2} 
+            />
+            <TextField 
+              label="Remarks" 
+              value={newTask.remarks} 
+              onChange={(e) => setNewTask({ ...newTask, remarks: e.target.value })} 
+              fullWidth 
+              multiline 
+              rows={2} 
+            />
+            <TextField 
+              label="Estimated Start Date" 
+              type="date" 
+              value={newTask.estStartDate} 
+              onChange={(e) => setNewTask({ ...newTask, estStartDate: e.target.value })} 
+              fullWidth 
+              InputLabelProps={{ shrink: true }} 
+              onBlur={validateAddTaskForm}
+              error={!!estStartDateError}
+              helperText={estStartDateError}
+            />
+            <TextField 
+              label="Estimated End Date" 
+              type="date" 
+              value={newTask.estEndDate} 
+              onChange={(e) => setNewTask({ ...newTask, estEndDate: e.target.value })} 
+              fullWidth 
+              InputLabelProps={{ shrink: true }} 
+              onBlur={validateAddTaskForm}
+              error={!!estEndDateError}
+              helperText={estEndDateError}
+            />
+            <FormControl fullWidth required>
+              <InputLabel>Status</InputLabel>
+              <Select value={newTask.status} label="Status" onChange={(e) => setNewTask({ ...newTask, status: e.target.value as any })}>
+                <MenuItem value="Pending">Pending</MenuItem>
+                <MenuItem value="In Progress">In Progress</MenuItem>
+                <MenuItem value="Completed">Completed</MenuItem>
+                <MenuItem value="On Hold">On Hold</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsModalOpen(false)} disabled={addingTask}>Cancel</Button>
+          <Button onClick={handleAddTask} variant="contained" disabled={addingTask} startIcon={addingTask ? <CircularProgress size={20} /> : <Plus />}>Add Activity</Button>
+        </DialogActions>
+      </Dialog>
 
-       {/* Add Activity Modal */}
-       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-             <h3 className="text-lg font-bold text-slate-800 mb-4">Add Pre-Construction Activity</h3>
-             <form onSubmit={handleAddTask} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
-                  <select 
-                     className="w-full border border-slate-300 rounded-lg p-2 text-sm"
-                     value={newTask.category}
-                     onChange={e => setNewTask({...newTask, category: e.target.value as any})}
-                  >
-                      <option>Survey</option>
-                      <option>Land Acquisition</option>
-                      <option>Forest Clearance</option>
-                      <option>Utility Shifting</option>
-                      <option>Design</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                  <input 
-                    required type="text" className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                    value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})}
-                    placeholder="e.g. Joint Verification"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Est. Start</label>
-                        <input 
-                            required type="date" className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                            value={newTask.estStartDate} onChange={e => setNewTask({...newTask, estStartDate: e.target.value})}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Est. End</label>
-                        <input 
-                            required type="date" className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                            value={newTask.estEndDate} onChange={e => setNewTask({...newTask, estEndDate: e.target.value})}
-                        />
-                    </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Remarks</label>
-                  <textarea 
-                    className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                    value={newTask.remarks} onChange={e => setNewTask({...newTask, remarks: e.target.value})}
-                  />
-                </div>
-                <div className="flex justify-end gap-3 pt-4">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancel</button>
-                  <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">Add</button>
-                </div>
-             </form>
-          </div>
-        </div>
-      )}
+      <Dialog open={isTrackModalOpen} onClose={() => setIsTrackModalOpen(false)} maxWidth="xs" fullWidth>
+          <DialogTitle>Track Progress</DialogTitle>
+          <DialogContent dividers>
+              <Box component="form" onSubmit={handleTrackSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField label="Date" type="date" value={trackForm.date} onChange={(e) => setTrackForm({ ...trackForm, date: e.target.value })} fullWidth InputLabelProps={{ shrink: true }} />
+                  <TextField label="Progress Added (%)" type="number" value={trackForm.progressAdded} onChange={(e) => setTrackForm({ ...trackForm, progressAdded: Number(e.target.value) })} fullWidth />
+                  <TextField label="Remarks" value={trackForm.description} onChange={(e) => setTrackForm({ ...trackForm, description: e.target.value })} fullWidth multiline rows={2} />
+              </Box>
+          </DialogContent>
+          <DialogActions>
+              <Button onClick={() => setIsTrackModalOpen(false)} disabled={trackingProgress}>Cancel</Button>
+              <Button onClick={handleTrackSubmit} variant="contained" disabled={trackingProgress} startIcon={trackingProgress ? <CircularProgress size={20} /> : <CheckCircle />}>Update Progress</Button>
+          </DialogActions>
+      </Dialog>
 
-      {/* Track Progress Modal */}
-      {isTrackModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-             <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">Track Daily Progress</h3>
-                <form onSubmit={handleTrackSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
-                        <input type="date" required className="w-full border border-slate-300 rounded-lg p-2 text-sm" value={trackForm.date} onChange={e => setTrackForm({...trackForm, date: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Progress Added (%)</label>
-                        <input type="number" min="0" max="100" required className="w-full border border-slate-300 rounded-lg p-2 text-sm" value={trackForm.progressAdded} onChange={e => setTrackForm({...trackForm, progressAdded: Number(e.target.value)})} />
-                        <p className="text-xs text-slate-400 mt-1">Enter incremental percentage completed today.</p>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Description / Activity</label>
-                        <input type="text" required className="w-full border border-slate-300 rounded-lg p-2 text-sm" placeholder="e.g. Field work done" value={trackForm.description} onChange={e => setTrackForm({...trackForm, description: e.target.value})} />
-                    </div>
-                    <div className="flex justify-end gap-3 pt-4">
-                        <button type="button" onClick={() => setIsTrackModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancel</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Update Progress</button>
-                    </div>
-                </form>
-             </div>
-          </div>
-      )}
-    </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Delete Pre-Construction Activity"
+        message="Are you sure you want to delete this pre-construction activity? This action cannot be undone."
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+            setConfirmOpen(false);
+            setItemToDeleteId(null);
+            showNotification("Deletion cancelled.", "info");
+        }}
+      />
+    </Box>
   );
 };
 

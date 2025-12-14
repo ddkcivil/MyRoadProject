@@ -5,14 +5,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-      base: '/MyRoadProject/',
-      build: {
-        rollupOptions: {
-          input: {
-            main: path.resolve(__dirname, 'index.html')
-          }
-        }
-      },
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -26,6 +18,11 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      test: { // Vitest configuration
+        globals: true,
+        environment: 'jsdom',
+        setupFiles: './vitest.setup.ts', // File to set up test environment
+      },
     };
 });

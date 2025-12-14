@@ -1,12 +1,39 @@
 
-import { Project, RFIStatus, WorkCategory, User, UserRole, RFI, LabTest, ScheduleTask, InventoryItem, InventoryTransaction, Vehicle, VehicleLog, ProjectDocument, DailyReport, PreConstructionTask, DailyWorkItem } from './types';
+import { Project, RFIStatus, WorkCategory, User, UserRole, RFI, LabTest, ScheduleTask, InventoryItem, InventoryTransaction, Vehicle, VehicleLog, ProjectDocument, DailyReport, PreConstructionTask, DailyWorkItem, StructureAsset, Message, StructureType } from './types';
 
 export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Admin User', email: 'admin@roadmaster.com', role: UserRole.ADMIN },
-  { id: 'u2', name: 'Rajesh Kumar', email: 'pm@roadmaster.com', role: UserRole.PROJECT_MANAGER },
-  { id: 'u3', name: 'John Doe', email: 'site@roadmaster.com', role: UserRole.SITE_ENGINEER },
-  { id: 'u4', name: 'Sarah Lee', email: 'lab@roadmaster.com', role: UserRole.LAB_TECHNICIAN },
-  { id: 'u5', name: 'Vikram Singh', email: 'supervisor@roadmaster.com', role: UserRole.SUPERVISOR },
+  { id: 'u1', name: 'Admin User', email: 'admin@roadmaster.com', phone: '9779800000001', role: UserRole.ADMIN },
+  { id: 'u2', name: 'Rajesh Kumar', email: 'pm@roadmaster.com', phone: '9779841234567', role: UserRole.PROJECT_MANAGER },
+  { id: 'u3', name: 'John Doe', email: 'site@roadmaster.com', phone: '9779812345678', role: UserRole.SITE_ENGINEER },
+  { id: 'u4', name: 'Sarah Lee', email: 'lab@roadmaster.com', phone: '9779809876543', role: UserRole.LAB_TECHNICIAN },
+  { id: 'u5', name: 'Vikram Singh', email: 'supervisor@roadmaster.com', phone: '9779865432109', role: UserRole.SUPERVISOR },
+];
+
+export const MOCK_MESSAGES: Message[] = [
+  { 
+      id: 'm1', 
+      senderId: 'u2', 
+      receiverId: 'general', 
+      content: 'Team, please ensure all daily progress reports are submitted by 5 PM today.', 
+      timestamp: new Date(Date.now() - 86400000).toISOString(), 
+      read: true 
+  },
+  { 
+      id: 'm2', 
+      senderId: 'u3', 
+      receiverId: 'general', 
+      content: 'Noted sir. GSB work is ongoing at Ch 12+500, will update accordingly.', 
+      timestamp: new Date(Date.now() - 82800000).toISOString(), 
+      read: true 
+  },
+  { 
+      id: 'm3', 
+      senderId: 'u4', 
+      receiverId: 'u2', 
+      content: 'Sir, the cube test results for the Culvert at 10+200 are ready. Shall I upload?', 
+      timestamp: new Date(Date.now() - 3600000).toISOString(), 
+      read: false 
+  },
 ];
 
 const PROJECT_1_BOQ = [
@@ -51,6 +78,46 @@ const PROJECT_1_BOQ = [
     completedQuantity: 2000
   },
   {
+    id: '13',
+    itemNo: '5.02',
+    description: 'Prime Coat over Granular Base (Low Viscosity Bitumen Emulsion)',
+    unit: 'sqm',
+    quantity: 10000,
+    rate: 45,
+    category: WorkCategory.PAVEMENT,
+    completedQuantity: 0
+  },
+  {
+    id: '14',
+    itemNo: '5.03.1',
+    description: 'Tack Coat using Bitumen Emulsion (Rapid Setting)',
+    unit: 'sqm',
+    quantity: 13000,
+    rate: 25,
+    category: WorkCategory.PAVEMENT,
+    completedQuantity: 0
+  },
+  {
+    id: '9',
+    itemNo: '5.01',
+    description: 'Dense Bituminous Macadam (DBM) using crushed aggregates of specified grading, premixed with bituminous binder',
+    unit: 'cum',
+    quantity: 8000,
+    rate: 6500,
+    category: WorkCategory.PAVEMENT,
+    completedQuantity: 0
+  },
+  {
+    id: '10',
+    itemNo: '5.03',
+    description: 'Bituminous Concrete (BC) grading 1 for wearing course, transporting to site, laying with paver finisher',
+    unit: 'cum',
+    quantity: 5000,
+    rate: 8500,
+    category: WorkCategory.PAVEMENT,
+    completedQuantity: 0
+  },
+  {
     id: '5',
     itemNo: '6.02',
     description: 'RCC M-25 Box Culvert (2m x 2m) construction including reinforcement and shuttering',
@@ -61,6 +128,46 @@ const PROJECT_1_BOQ = [
     completedQuantity: 450
   },
   {
+    id: 'drain-1',
+    itemNo: '6.05',
+    description: 'Construction of Unlined Trapezoidal Drain',
+    unit: 'rm',
+    quantity: 5000,
+    rate: 150,
+    category: WorkCategory.DRAINAGE,
+    completedQuantity: 1200
+  },
+  {
+    id: 'drain-2',
+    itemNo: '6.06',
+    description: 'RCC M25 Rectangular Covered Drain',
+    unit: 'rm',
+    quantity: 2000,
+    rate: 3500,
+    category: WorkCategory.DRAINAGE,
+    completedQuantity: 0
+  },
+  {
+    id: '11',
+    itemNo: '9.01',
+    description: 'Interlocking Paver Blocks (60mm) for Footpath including sand bedding',
+    unit: 'sqm',
+    quantity: 2000,
+    rate: 800,
+    category: WorkCategory.FOOTPATH,
+    completedQuantity: 500
+  },
+  {
+    id: '12',
+    itemNo: '9.02',
+    description: 'Precast Concrete Kerb Stone (M25) of size 450x300x150mm',
+    unit: 'rm',
+    quantity: 1000,
+    rate: 450,
+    category: WorkCategory.FOOTPATH,
+    completedQuantity: 200
+  },
+  {
     id: '6',
     itemNo: '8.01',
     description: 'Thermoplastic Road Marking with hot applied thermoplastic compound',
@@ -69,6 +176,16 @@ const PROJECT_1_BOQ = [
     rate: 650,
     category: WorkCategory.FURNITURE,
     completedQuantity: 0
+  },
+  {
+    id: 'furn-2',
+    itemNo: '8.04',
+    description: 'Traffic Sign Boards (Warning/Regulatory)',
+    unit: 'nos',
+    quantity: 50,
+    rate: 4500,
+    category: WorkCategory.FURNITURE,
+    completedQuantity: 10
   },
   {
     id: '7',
@@ -287,10 +404,48 @@ const mockVehicleLogs: VehicleLog[] = [
 ];
 
 const mockDocuments: ProjectDocument[] = [
-  { id: 'd-1', name: 'Contract_Agreement.pdf', type: 'PDF', date: '2023-08-15', size: '4.2 MB', subject: 'Main Contract Agreement' },
-  { id: 'd-2', name: 'Site_Handover_Plan.pdf', type: 'PDF', date: '2023-09-01', size: '1.5 MB', subject: 'Site Handover Layout', refNo: 'NHAI/2023/SH/01' },
-  { id: 'd-3', name: 'Oct_Monthly_Report.pdf', type: 'PDF', date: '2023-10-31', size: '2.8 MB', subject: 'Monthly Progress Report October' },
-  { id: 'd-4', name: 'Design_Drawing_Culvert.pdf', type: 'PDF', date: '2023-09-10', size: '5.1 MB', subject: 'GFC Drawings for Box Culvert', refNo: 'DES/STR/005' },
+  { 
+      id: 'd-1', 
+      name: 'Contract_Agreement.pdf', 
+      type: 'PDF', 
+      date: '2023-08-15', 
+      size: '4.2 MB', 
+      folder: 'Contracts',
+      subject: 'Main Contract Agreement',
+      tags: ['Important', 'Signed'] 
+  },
+  { 
+      id: 'd-2', 
+      name: 'Site_Handover_Plan.pdf', 
+      type: 'PDF', 
+      date: '2023-09-01', 
+      size: '1.5 MB', 
+      folder: 'Drawings',
+      subject: 'Site Handover Layout', 
+      refNo: 'NHAI/2023/SH/01',
+      tags: ['Approved'] 
+  },
+  { 
+      id: 'd-3', 
+      name: 'Oct_Monthly_Report.pdf', 
+      type: 'PDF', 
+      date: '2023-10-31', 
+      size: '2.8 MB', 
+      folder: 'Reports',
+      subject: 'Monthly Progress Report October',
+      tags: ['Monthly'] 
+  },
+  { 
+      id: 'd-4', 
+      name: 'Design_Drawing_Culvert.pdf', 
+      type: 'PDF', 
+      date: '2023-09-10', 
+      size: '5.1 MB', 
+      folder: 'Drawings',
+      subject: 'GFC Drawings for Box Culvert', 
+      refNo: 'DES/STR/005',
+      tags: ['GFC', 'Structural'] 
+  },
 ];
 
 const mockDailyReports: DailyReport[] = [
@@ -394,6 +549,77 @@ const mockPreConstruction: PreConstructionTask[] = [
     },
 ];
 
+const mockStructures: StructureAsset[] = [
+    {
+      id: 'str-001',
+      name: 'Box Culvert at Ch 12+500',
+      type: StructureType.BOX_CULVERT,
+      location: '12+500',
+      status: 'In Progress',
+      components: [
+        { id: 'c1', name: 'Structural Excavation', unit: 'cum', totalQuantity: 150, completedQuantity: 150 },
+        { id: 'c2', name: 'PCC M15', unit: 'cum', totalQuantity: 25, completedQuantity: 25 },
+        { id: 'c3', name: 'Bottom Slab Rebar', unit: 'MT', totalQuantity: 4.5, completedQuantity: 4.5 },
+        { id: 'c4', name: 'Bottom Slab RCC M25', unit: 'cum', totalQuantity: 60, completedQuantity: 60 },
+        { id: 'c5', name: 'Wall Rebar', unit: 'MT', totalQuantity: 8, completedQuantity: 2 },
+        { id: 'c6', name: 'Wall RCC M25', unit: 'cum', totalQuantity: 90, completedQuantity: 0 },
+        { id: 'c7', name: 'Top Slab RCC M25', unit: 'cum', totalQuantity: 60, completedQuantity: 0 },
+      ]
+    },
+    {
+      id: 'str-002',
+      name: 'Hume Pipe Culvert at Ch 10+200',
+      type: StructureType.PIPE_CULVERT,
+      location: '10+200',
+      status: 'Completed',
+      components: [
+        { id: 'c1', name: 'Excavation', unit: 'cum', totalQuantity: 45, completedQuantity: 45 },
+        { id: 'c2', name: 'Bedding PCC', unit: 'cum', totalQuantity: 10, completedQuantity: 10 },
+        { id: 'c3', name: 'Pipe Laying (1200mm Dia)', unit: 'rm', totalQuantity: 12, completedQuantity: 12 },
+        { id: 'c4', name: 'Headwall RCC', unit: 'cum', totalQuantity: 15, completedQuantity: 15 },
+      ]
+    },
+    {
+      id: 'str-003',
+      name: 'Pipe Culvert at Ch 10+500',
+      type: StructureType.PIPE_CULVERT,
+      size: '900mm Dia',
+      location: '10+500',
+      status: 'Not Started',
+      components: [
+        { id: 'c1', name: 'Structural Excavation', unit: 'cum', totalQuantity: 150, completedQuantity: 0 },
+        { id: 'c2', name: 'PCC M15', unit: 'cum', totalQuantity: 25, completedQuantity: 0 },
+        { id: 'c3', name: 'Pipe Laying (900mm NP4)', unit: 'rm', totalQuantity: 12, completedQuantity: 0 },
+      ]
+    },
+    {
+      id: 'str-004',
+      name: 'Pipe Culvert (NP3 Design)',
+      type: StructureType.PIPE_CULVERT,
+      size: '900mm Dia',
+      location: '10+500',
+      status: 'Not Started',
+      components: [
+        { id: 'nc-1', name: 'Structural Excavation', unit: 'cum', totalQuantity: 150, completedQuantity: 0 },
+        { id: 'nc-2', name: 'PCC M15', unit: 'cum', totalQuantity: 25, completedQuantity: 0 },
+        { id: 'nc-3', name: 'Pipe Laying (900mm NP3)', unit: 'rm', totalQuantity: 12, completedQuantity: 0 },
+      ]
+    },
+    {
+      id: 'str-005',
+      name: 'Pipe Culvert at Ch 10+500 (Additional)',
+      type: StructureType.PIPE_CULVERT,
+      size: '900mm Dia',
+      location: '10+500',
+      status: 'Not Started',
+      components: [
+        { id: 'nc-new-1', name: 'Structural Excavation', unit: 'cum', totalQuantity: 150, completedQuantity: 0 },
+        { id: 'nc-new-2', name: 'PCC M15', unit: 'cum', totalQuantity: 25, completedQuantity: 0 },
+        { id: 'nc-new-3', name: 'Pipe Laying (900mm NP4)', unit: 'rm', totalQuantity: 12, completedQuantity: 0 },
+      ]
+    }
+];
+
 export const MOCK_PROJECTS: Project[] = [
   {
     id: 'proj-001',
@@ -416,7 +642,8 @@ export const MOCK_PROJECTS: Project[] = [
     vehicleLogs: mockVehicleLogs,
     documents: mockDocuments,
     dailyReports: mockDailyReports,
-    preConstruction: mockPreConstruction
+    preConstruction: mockPreConstruction,
+    structures: mockStructures
   },
   {
     id: 'proj-002',
@@ -482,10 +709,11 @@ export const MOCK_PROJECTS: Project[] = [
     ],
     vehicleLogs: [],
     documents: [
-      { id: 'p2-d-1', name: 'Forest_Clearance_Letter.pdf', type: 'PDF', date: '2023-07-20', size: '1.2 MB' },
-      { id: 'p2-d-2', name: 'Env_Impact_Assessment.pdf', type: 'PDF', date: '2023-06-15', size: '12.5 MB' }
+      { id: 'p2-d-1', name: 'Forest_Clearance_Letter.pdf', type: 'PDF', date: '2023-07-20', size: '1.2 MB', folder: 'Clearances' },
+      { id: 'p2-d-2', name: 'Env_Impact_Assessment.pdf', type: 'PDF', date: '2023-06-15', size: '12.5 MB', folder: 'Reports' }
     ],
     dailyReports: [],
-    preConstruction: []
+    preConstruction: [],
+    structures: []
   }
 ];

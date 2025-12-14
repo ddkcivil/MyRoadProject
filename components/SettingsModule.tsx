@@ -1,184 +1,187 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Save, CheckCircle, Bell, Mail, Calendar, AlertCircle } from 'lucide-react';
 import { AppSettings } from '../types';
+import {
+    Box,
+    Typography,
+    Button,
+    Grid,
+    Card,
+    CardContent,
+    TextField,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    Switch,
+    FormControlLabel,
+    Divider,
+    Paper
+} from '@mui/material';
+import { SettingsContext } from '../AuthAndSettingsContext'; // Import SettingsContext
 
 interface Props {
-  settings: AppSettings;
-  onUpdate: (settings: AppSettings) => void;
+  // settings: AppSettings; // Removed, now using context
+  // onUpdate: (settings: AppSettings) => void; // Removed, now using context
 }
 
-const SettingsModule: React.FC<Props> = ({ settings, onUpdate }) => {
-  const [formData, setFormData] = useState<AppSettings>(settings);
+const SettingsModule: React.FC<Props> = () => {
+  const { settingsState, dispatchSettings } = useContext(SettingsContext); // Use SettingsContext
+  const [formData, setFormData] = useState<AppSettings>(settingsState.appSettings); // Initialize with context state
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(false); // Add loading state
 
-  // Sync prop changes
+  // Validation states
+  const [companyNameError, setCompanyNameError] = useState('');
+  const [vatRateError, setVatRateError] = useState('');
+  const [fiscalYearStartError, setFiscalYearStartError] = useState('');
+
   useEffect(() => {
-    setFormData(settings);
-  }, [settings]);
+    setFormData(settingsState.appSettings); // Update form data when context settings change
+  }, [settingsState.appSettings]);
+
+  const validateForm = () => {
+    let isValid = true;
+    setCompanyNameError('');
+    setVatRateError('');
+    setFiscalYearStartError('');
+
+    if (!formData.companyName.trim()) {
+      setCompanyNameError('Company Name is required.');
+      isValid = false;
+    }
+
+    if (isNaN(formData.vatRate) || formData.vatRate < 0 || formData.vatRate > 100) {
+      setVatRateError('VAT Rate must be a number between 0 and 100.');
+      isValid = false;
+    }
+
+    if (!formData.fiscalYearStart) {
+      setFiscalYearStartError('Fiscal Year Start date is required.');
+      isValid = false;
+    }
+
+    return isValid;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdate(formData);
+    if (!validateForm()) {
+      return;
+    }
+    setLoading(true); // Set loading to true
+    dispatchSettings({ type: 'UPDATE_SETTINGS', payload: formData }); // Dispatch UPDATE_SETTINGS action
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setTimeout(() => {
+      setSaved(false);
+      setLoading(false); // Set loading to false after timeout
+    }, 2000);
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">System Settings</h2>
-          <p className="text-slate-500 text-sm">Configure defaults for new projects</p>
-        </div>
-      </div>
+    <Box maxWidth="lg" mx="auto">
+       <Box mb={3}>
+          <Typography variant="h4" fontWeight="bold">System Settings</Typography>
+          <Typography variant="subtitle1" color="text.secondary">Configure defaults for new projects</Typography>
+        </Box>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-8">
-          
-          <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">General Configuration</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Company Name</label>
-                      <input 
-                        type="text" 
-                        required
-                        className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                        value={formData.companyName}
-                        onChange={e => setFormData({...formData, companyName: e.target.value})}
-                      />
-                  </div>
-                  <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Default Currency</label>
-                      <select 
-                        className="w-full border border-slate-300 rounded-lg p-2 text-sm"
-                        value={formData.currency}
-                        onChange={e => setFormData({...formData, currency: e.target.value})}
-                      >
-                          <option value="USD">USD ($)</option>
-                          <option value="NPR">NPR (Rs.)</option>
-                          <option value="INR">INR (₹)</option>
-                      </select>
-                  </div>
-              </div>
-          </div>
-
-          <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">Financial Defaults</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Default VAT Rate (%)</label>
-                      <input 
-                        type="number" 
-                        step="0.1"
-                        required
-                        className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                        value={formData.vatRate}
-                        onChange={e => setFormData({...formData, vatRate: parseFloat(e.target.value)})}
-                      />
-                  </div>
-                  <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Fiscal Year Start</label>
-                      <input 
-                        type="date" 
-                        required
-                        className="w-full border border-slate-300 rounded-lg p-2 text-sm" 
-                        value={formData.fiscalYearStart}
-                        onChange={e => setFormData({...formData, fiscalYearStart: e.target.value})}
-                      />
-                  </div>
-              </div>
-          </div>
-
-          <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">Notification Preferences</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                      <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><Bell size={16}/> Channels</h4>
-                      <div className="space-y-3">
-                          <label className="flex items-center gap-3 cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                checked={formData.notifications.enableEmail}
-                                onChange={e => setFormData({...formData, notifications: {...formData.notifications, enableEmail: e.target.checked}})}
-                                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" 
-                              />
-                              <span className="text-sm text-slate-700 flex items-center gap-2"><Mail size={14} className="text-slate-400"/> Email Notifications</span>
-                          </label>
-                          <label className="flex items-center gap-3 cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                checked={formData.notifications.enableInApp}
-                                onChange={e => setFormData({...formData, notifications: {...formData.notifications, enableInApp: e.target.checked}})}
-                                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" 
-                              />
-                              <span className="text-sm text-slate-700 flex items-center gap-2"><Bell size={14} className="text-slate-400"/> In-App Alerts</span>
-                          </label>
-                      </div>
-                  </div>
-
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                      <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><AlertCircle size={16}/> Triggers & Rules</h4>
-                      <div className="space-y-3">
-                           <label className="flex items-center justify-between gap-3 cursor-pointer">
-                              <div className="flex items-center gap-2">
-                                <input 
-                                    type="checkbox" 
-                                    checked={formData.notifications.notifyUpcoming}
-                                    onChange={e => setFormData({...formData, notifications: {...formData.notifications, notifyUpcoming: e.target.checked}})}
-                                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" 
+      <Card component="form" onSubmit={handleSubmit}>
+          <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <Box>
+                  <Typography variant="h6" gutterBottom>General Configuration</Typography>
+                  <Grid container spacing={3}>
+                      <Grid item xs={12} md={6}>
+                          <TextField 
+                            label="Company Name" 
+                            fullWidth 
+                            required 
+                            value={formData.companyName} 
+                            onChange={e => setFormData({...formData, companyName: e.target.value})} 
+                            onBlur={validateForm}
+                            error={!!companyNameError}
+                            helperText={companyNameError}
+                          />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                          <FormControl fullWidth><InputLabel>Default Currency</InputLabel><Select label="Default Currency" value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})}><MenuItem value="USD">USD ($)</MenuItem><MenuItem value="NPR">NPR (Rs.)</MenuItem><MenuItem value="INR">INR (₹)</MenuItem></Select></FormControl>
+                      </Grid>
+                  </Grid>
+              </Box>
+              <Divider />
+              <Box>
+                  <Typography variant="h6" gutterBottom>Financial Defaults</Typography>
+                  <Grid container spacing={3}>
+                      <Grid item xs={12} md={6}>
+                          <TextField 
+                            label="Default VAT Rate (%)" 
+                            type="number" 
+                            fullWidth 
+                            required 
+                            value={formData.vatRate} 
+                            onChange={e => setFormData({...formData, vatRate: parseFloat(e.target.value)})} 
+                            onBlur={validateForm}
+                            error={!!vatRateError}
+                            helperText={vatRateError}
+                          />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                          <TextField 
+                            label="Fiscal Year Start" 
+                            type="date" 
+                            fullWidth 
+                            required 
+                            InputLabelProps={{ shrink: true }} 
+                            value={formData.fiscalYearStart} 
+                            onChange={e => setFormData({...formData, fiscalYearStart: e.target.value})} 
+                            onBlur={validateForm}
+                            error={!!fiscalYearStartError}
+                            helperText={fiscalYearStartError}
+                          />
+                      </Grid>
+                  </Grid>
+              </Box>
+              <Divider />
+              <Box>
+                  <Typography variant="h6" gutterBottom>Notification Preferences</Typography>
+                  <Grid container spacing={3}>
+                      <Grid item xs={12} md={6}>
+                          <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                              <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Channels</Typography>
+                              <FormControlLabel control={<Switch checked={formData.notifications.enableEmail} onChange={e => setFormData({...formData, notifications: {...formData.notifications, enableEmail: e.target.checked}})}/>} label="Email Notifications" />
+                              <FormControlLabel control={<Switch checked={formData.notifications.enableInApp} onChange={e => setFormData({...formData, notifications: {...formData.notifications, enableInApp: e.target.checked}})}/>} label="In-App Alerts" />
+                          </Paper>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                          <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                              <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Rules & Triggers</Typography>
+                              <FormControlLabel control={<Switch checked={formData.notifications.notifyUpcoming} onChange={e => setFormData({...formData, notifications: {...formData.notifications, notifyUpcoming: e.target.checked}})}/>} label="Upcoming Deadlines" />
+                              {formData.notifications.notifyUpcoming && 
+                                <TextField 
+                                  size="small" 
+                                  label="Days Before" 
+                                  type="number" 
+                                  value={formData.notifications.daysBefore} 
+                                  onChange={e => setFormData({...formData, notifications: {...formData.notifications, daysBefore: parseInt(e.target.value) || 1}})} 
+                                  sx={{ ml: 4, width: 150 }} 
+                                  onBlur={validateForm} // Not strictly required, but good practice
+                                  error={!!vatRateError} // Reusing vatRateError for simplicity, or add a dedicated one
+                                  helperText={vatRateError ? 'Must be a number.' : ''}
                                 />
-                                <span className="text-sm text-slate-700 flex items-center gap-2"><Calendar size={14} className="text-slate-400"/> Upcoming Deadlines</span>
-                              </div>
-                          </label>
-                          
-                          {formData.notifications.notifyUpcoming && (
-                              <div className="ml-6 flex items-center gap-2 p-2 bg-white border border-slate-200 rounded">
-                                  <span className="text-xs text-slate-500">Notify</span>
-                                  <input 
-                                    type="number" 
-                                    min="1" max="30"
-                                    value={formData.notifications.daysBefore}
-                                    onChange={e => setFormData({...formData, notifications: {...formData.notifications, daysBefore: parseInt(e.target.value) || 1}})}
-                                    className="w-12 border border-slate-300 rounded p-1 text-xs text-center focus:ring-indigo-500 focus:border-indigo-500"
-                                  />
-                                  <span className="text-xs text-slate-500">days before due date</span>
-                              </div>
-                          )}
-                          
-                          <label className="flex items-center gap-3 cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                checked={formData.notifications.notifyOverdue}
-                                onChange={e => setFormData({...formData, notifications: {...formData.notifications, notifyOverdue: e.target.checked}})}
-                                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" 
-                              />
-                              <span className="text-sm text-slate-700 text-rose-600 font-medium">Alert on Overdue Tasks</span>
-                          </label>
-
-                          <label className="flex items-center gap-3 cursor-pointer pt-2 border-t border-slate-200">
-                              <input 
-                                type="checkbox" 
-                                checked={formData.notifications.dailyDigest}
-                                onChange={e => setFormData({...formData, notifications: {...formData.notifications, dailyDigest: e.target.checked}})}
-                                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" 
-                              />
-                              <span className="text-sm text-slate-700">Send Daily Activity Digest</span>
-                          </label>
-                      </div>
-                  </div>
-              </div>
-          </div>
-
-          <div className="pt-4 flex justify-end items-center gap-4 border-t border-slate-100">
-              {saved && <span className="text-green-600 flex items-center gap-1 text-sm font-medium"><CheckCircle size={16}/> Settings Saved</span>}
-              <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium shadow-sm hover:bg-indigo-700 flex items-center gap-2 transition-colors">
-                  <Save size={18} /> Save Configuration
-              </button>
-          </div>
-      </form>
-    </div>
+                              }
+                              <FormControlLabel control={<Switch checked={formData.notifications.notifyOverdue} onChange={e => setFormData({...formData, notifications: {...formData.notifications, notifyOverdue: e.target.checked}})}/>} label="Overdue Task Alerts" />
+                              <FormControlLabel control={<Switch checked={formData.notifications.dailyDigest} onChange={e => setFormData({...formData, notifications: {...formData.notifications, dailyDigest: e.target.checked}})}/>} label="Daily Activity Digest" />
+                          </Paper>
+                      </Grid>
+                  </Grid>
+              </Box>
+          </CardContent>
+          <Divider />
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
+              {saved && <Typography color="success.main" variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><CheckCircle size={16}/> Settings Saved</Typography>}
+              <Button type="submit" variant="contained" startIcon={<Save />} disabled={loading}>Save Configuration</Button>
+          </Box>
+      </Card>
+    </Box>
   );
 };
 

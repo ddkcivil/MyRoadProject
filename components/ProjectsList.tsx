@@ -1,7 +1,30 @@
-
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Project, UserRole, BOQItem } from '../types';
 import { Search, Plus, Trash2, Edit, CheckCircle, X } from 'lucide-react';
+import {
+    Box,
+    Typography,
+    Button,
+    Grid,
+    Card,
+    CardContent,
+    TextField,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    LinearProgress,
+    IconButton,
+    Tooltip,
+    InputAdornment,
+    CircularProgress
+} from '@mui/material';
 
 interface Props {
   projects: Project[];
@@ -11,13 +34,99 @@ interface Props {
   onDeleteProject: (id: string) => void;
 }
 
+// Debounce utility function
+const debounce = (func: (...args: any[]) => void, delay: number) => {
+  let timeout: NodeJS.Timeout;
+  return function(this: any, ...args: any[]) {
+    const context = this;
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(context, args), delay);
+  };
+};
+
+export const calculateProgress = (boq: BOQItem[]) => {
+  const totalValue = boq.reduce((sum, item) => sum + (item.quantity * item.rate), 0);
+  if (totalValue === 0) return 0;
+  const completedValue = boq.reduce((sum, item) => sum + (item.completedQuantity * item.rate), 0);
+  return Math.round((completedValue / totalValue) * 100);
+};
+
+interface ProjectRowProps {
+  project: Project;
+  userRole: UserRole;
+  onSelectProject: (projectId: string) => void;
+  onDeleteProject: (id: string) => void;
+  handleOpenEdit: (project: Project) => void;
+}
+
+const ProjectRow: React.FC<ProjectRowProps> = React.memo(({
+  project,
+  userRole,
+  onSelectProject,
+  onDeleteProject,
+  handleOpenEdit
+}) => {
+  const progress = calculateProgress(project.boq);
+  const hasEditPrivilege = userRole === UserRole.ADMIN || userRole === UserRole.PROJECT_MANAGER;
+
+  return (
+    <TableRow hover key={project.id}>
+        <TableCell sx={{ cursor: 'pointer' }} onClick={() => onSelectProject(project.id)}>
+            <Typography variant="subtitle2" color="primary" fontWeight="bold">{project.name}</Typography>
+            <Typography variant="caption" color="text.secondary">{project.location}</Typography>
+        </TableCell>
+        <TableCell>{project.client}</TableCell>
+        <TableCell>{project.contractNo}</TableCell>
+        <TableCell>{project.startDate} to {project.endDate}</TableCell>
+        <TableCell>
+            <Box display="flex" alignItems="center" gap={2}>
+            <LinearProgress variant="determinate" value={progress} sx={{ width: 100, height: 8, borderRadius: 4 }} />
+            <Typography variant="body2">{progress}%</Typography>
+            </Box>
+        </TableCell>
+        <TableCell align="center">
+            <Tooltip title="Select Project"><IconButton color="success" onClick={() => onSelectProject(project.id)} aria-label="Select project" size="small" sx={{ minWidth: { xs: 44, md: 'auto' }, minHeight: { xs: 44, md: 'auto' } }}><CheckCircle /></IconButton></Tooltip>
+            {hasEditPrivilege && (
+            <>
+                <Tooltip title="Edit"><IconButton color="primary" onClick={() => handleOpenEdit(project)} aria-label="Edit project" size="small" sx={{ minWidth: { xs: 44, md: 'auto' }, minHeight: { xs: 44, md: 'auto' } }}><Edit /></IconButton></Tooltip>
+                <Tooltip title="Delete"><IconButton color="error" onClick={() => onDeleteProject(project.id)} aria-label="Delete project" size="small" sx={{ minWidth: { xs: 44, md: 'auto' }, minHeight: { xs: 44, md: 'auto' } }}><Trash2 /></IconButton></Tooltip>
+            </>
+            )}
+        </TableCell>
+    </TableRow>
+  );
+});
+
+
 const ProjectsList: React.FC<Props> = ({ projects, userRole, onSelectProject, onSaveProject, onDeleteProject }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [displaySearchTerm, setDisplaySearchTerm] = useState(''); // New state for input value
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Project>>({});
+  const [saving, setSaving] = useState(false); // Add saving state
 
-  // Privilege Check: Only Admin and PM can Edit/Delete/Create
+  // Validation states
+  const [projectNameError, setProjectNameError] = useState('');
+  const [projectCodeError, setProjectCodeError] = useState('');
+  const [clientError, setClientError] = useState('');
+  const [contractorError, setContractorError] = useState('');
+  const [startDateError, setStartDateError] = useState('');
+  const [endDateError, setEndDateError] = useState('');
+  const [contractNoError, setContractNoError] = useState('');
+
   const hasEditPrivilege = userRole === UserRole.ADMIN || userRole === UserRole.PROJECT_MANAGER;
+
+  const debouncedSetSearchTerm = useCallback(
+    debounce((value: string) => {
+      setSearchTerm(value);
+    }, 300), 
+    []
+  );
+
+  const handleDisplaySearchTermChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDisplaySearchTerm(e.target.value);
+    debouncedSetSearchTerm(e.target.value);
+  };
 
   const filteredProjects = projects.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -27,209 +136,149 @@ const ProjectsList: React.FC<Props> = ({ projects, userRole, onSelectProject, on
 
   const handleOpenNew = () => {
     setEditForm({});
+    setProjectNameError('');
+    setProjectCodeError('');
+    setClientError('');
+    setContractorError('');
+    setStartDateError('');
+    setEndDateError('');
+    setContractNoError('');
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (project: Project) => {
     setEditForm(project);
+    setProjectNameError('');
+    setProjectCodeError('');
+    setClientError('');
+    setContractorError('');
+    setStartDateError('');
+    setEndDateError('');
+    setContractNoError('');
     setIsModalOpen(true);
+  };
+
+  const validateForm = () => {
+    let isValid = true;
+    setProjectNameError('');
+    setProjectCodeError('');
+    setClientError('');
+    setContractorError('');
+    setStartDateError('');
+    setEndDateError('');
+    setContractNoError('');
+
+    if (!editForm.name?.trim()) {
+      setProjectNameError('Project Name is required.');
+      isValid = false;
+    }
+    if (!editForm.code?.trim()) {
+      setProjectCodeError('Project Code is required.');
+      isValid = false;
+    }
+    if (!editForm.client?.trim()) {
+      setClientError('Client / Employer is required.');
+      isValid = false;
+    }
+    if (!editForm.contractor?.trim()) {
+      setContractorError('Contractor is required.');
+      isValid = false;
+    }
+    if (!editForm.startDate) {
+      setStartDateError('Start Date is required.');
+      isValid = false;
+    }
+    if (editForm.endDate && editForm.startDate && editForm.endDate < editForm.startDate) {
+      setEndDateError('End Date cannot be before Start Date.');
+      isValid = false;
+    }
+    return isValid;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) {
+      return;
+    }
+    setSaving(true); // Set saving to true
     onSaveProject(editForm);
     setIsModalOpen(false);
-  };
-
-  const calculateProgress = (boq: BOQItem[]) => {
-    const totalValue = boq.reduce((sum, item) => sum + (item.quantity * item.rate), 0);
-    if (totalValue === 0) return 0;
-    const completedValue = boq.reduce((sum, item) => sum + (item.completedQuantity * item.rate), 0);
-    return Math.round((completedValue / totalValue) * 100);
+    setSaving(false); // Set saving to false
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold text-slate-800">Projects</h2>
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4" fontWeight="bold">Projects</Typography>
         {hasEditPrivilege && (
-          <button onClick={handleOpenNew} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-lg shadow-indigo-200 flex items-center gap-2 font-medium transition-all">
-             <Plus size={18} /> New Project
-          </button>
+          <Button variant="contained" startIcon={<Plus />} onClick={handleOpenNew}>New Project</Button>
         )}
-      </div>
+      </Box>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-         {/* Header & Search */}
-         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-indigo-600 text-white">
-            <div className="font-semibold">All Projects</div>
-            <div className="relative">
-               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-300" size={16} />
-               <input 
-                 type="text" 
-                 placeholder="Search projects..." 
-                 value={searchTerm}
-                 onChange={(e) => setSearchTerm(e.target.value)}
-                 className="pl-9 pr-4 py-1.5 rounded-lg bg-indigo-500/50 border border-indigo-400/30 text-white placeholder-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 w-full sm:w-64"
-               />
-            </div>
-         </div>
+      <Card>
+         <Box p={2} display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">All Projects</Typography>
+            <TextField
+              size="small"
+              placeholder="Search projects..."
+              value={displaySearchTerm} // Use displaySearchTerm for input value
+              onChange={handleDisplaySearchTermChange} // Use new handler
+              InputProps={{
+                  startAdornment: <InputAdornment position="start"><Search size={16} /></InputAdornment>
+              }}
+            />
+         </Box>
+         <TableContainer>
+            <Table>
+               <TableHead>
+                  <TableRow>
+                     <TableCell>Name</TableCell>
+                     <TableCell>Client</TableCell>
+                     <TableCell>Contract No</TableCell>
+                     <TableCell>Dates</TableCell>
+                     <TableCell>Progress</TableCell>
+                     <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+               </TableHead>
+               <TableBody>
+                  {filteredProjects.map(project => (
+                    <ProjectRow
+                      key={project.id}
+                      project={project}
+                      userRole={userRole}
+                      onSelectProject={onSelectProject}
+                      onDeleteProject={onDeleteProject}
+                      handleOpenEdit={handleOpenEdit}
+                    />
+                  ))}
+               </TableBody>
+            </Table>
+         </TableContainer>
+      </Card>
 
-         <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-               <thead className="bg-indigo-50 text-indigo-900 font-medium border-b border-indigo-100">
-                  <tr>
-                     <th className="px-6 py-4 whitespace-nowrap">Name</th>
-                     <th className="px-6 py-4 whitespace-nowrap">Client</th>
-                     <th className="px-6 py-4 whitespace-nowrap">Contractor</th>
-                     <th className="px-6 py-4 whitespace-nowrap">Contract No</th>
-                     <th className="px-6 py-4 whitespace-nowrap">Dates</th>
-                     <th className="px-6 py-4 whitespace-nowrap w-32">Progress</th>
-                     <th className="px-6 py-4 whitespace-nowrap text-center">Actions</th>
-                  </tr>
-               </thead>
-               <tbody className="divide-y divide-slate-100">
-                  {filteredProjects.map(project => {
-                     const progress = calculateProgress(project.boq);
-                     return (
-                        <tr key={project.id} className="hover:bg-slate-50 transition-colors group">
-                           <td className="px-6 py-4 font-medium text-indigo-600 cursor-pointer" onClick={() => onSelectProject(project.id)}>
-                              {project.name}
-                              <div className="text-xs text-slate-400 font-normal">{project.location}</div>
-                           </td>
-                           <td className="px-6 py-4 text-slate-600">{project.client}</td>
-                           <td className="px-6 py-4 text-slate-600">{project.contractor}</td>
-                           <td className="px-6 py-4 font-mono text-xs text-slate-500">{project.contractNo}</td>
-                           <td className="px-6 py-4 text-xs text-slate-600">
-                              <div>{project.startDate}</div>
-                              <div className="text-slate-400">to</div>
-                              <div>{project.endDate}</div>
-                           </td>
-                           <td className="px-6 py-4">
-                              <div className="flex flex-col gap-1">
-                                 <div className="flex justify-between text-xs mb-1">
-                                    <span className="font-semibold text-slate-700">{progress}%</span>
-                                 </div>
-                                 <div className="w-full bg-slate-200 rounded-full h-1.5">
-                                    <div 
-                                       className={`h-1.5 rounded-full ${progress === 100 ? 'bg-green-500' : 'bg-blue-600'}`} 
-                                       style={{ width: `${progress}%` }}
-                                    ></div>
-                                 </div>
-                              </div>
-                           </td>
-                           <td className="px-6 py-4">
-                              <div className="flex items-center justify-center gap-2">
-                                 {/* Everyone can Select */}
-                                 <button onClick={() => onSelectProject(project.id)} className="p-1.5 text-white bg-cyan-500 rounded hover:bg-cyan-600 shadow-sm" title="Select Project">
-                                    <CheckCircle size={16} />
-                                 </button>
-                                 
-                                 {/* Only Admin/PM can Edit/Delete */}
-                                 {hasEditPrivilege && (
-                                   <>
-                                     <button onClick={() => handleOpenEdit(project)} className="p-1.5 text-white bg-amber-500 rounded hover:bg-amber-600 shadow-sm" title="Edit">
-                                        <Edit size={16} />
-                                     </button>
-                                     <button onClick={() => onDeleteProject(project.id)} className="p-1.5 text-white bg-rose-500 rounded hover:bg-rose-600 shadow-sm" title="Delete">
-                                        <Trash2 size={16} />
-                                     </button>
-                                   </>
-                                 )}
-                              </div>
-                           </td>
-                        </tr>
-                     );
-                  })}
-               </tbody>
-            </table>
-         </div>
-         <div className="p-4 border-t border-slate-100 bg-slate-50 text-xs text-slate-500 flex justify-between items-center">
-            <span>Showing {filteredProjects.length} entries</span>
-            <div className="flex gap-1">
-               <button className="px-3 py-1 rounded border bg-white hover:bg-slate-50 disabled:opacity-50">Previous</button>
-               <button className="px-3 py-1 rounded border bg-white hover:bg-slate-50 disabled:opacity-50">Next</button>
-            </div>
-         </div>
-      </div>
-
-      {/* Create/Edit Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-             <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-slate-800">{editForm.id ? 'Edit Project' : 'New Project'}</h3>
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
-             </div>
-             
-             <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Project Name</label>
-                    <input required type="text" className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                      value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} placeholder="e.g. Highway Expansion Package 4" />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Project Code</label>
-                    <input required type="text" className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                      value={editForm.code || ''} onChange={e => setEditForm({...editForm, code: e.target.value})} placeholder="e.g. HW-PKG-04" />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Contract No</label>
-                    <input type="text" className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                      value={editForm.contractNo || ''} onChange={e => setEditForm({...editForm, contractNo: e.target.value})} />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Client / Employer</label>
-                    <input required type="text" className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                      value={editForm.client || ''} onChange={e => setEditForm({...editForm, client: e.target.value})} placeholder="e.g. NHAI / PWD" />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Authority Engineer / Consultant</label>
-                    <input type="text" className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                      value={editForm.engineer || ''} onChange={e => setEditForm({...editForm, engineer: e.target.value})} />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Contractor</label>
-                    <input required type="text" className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                      value={editForm.contractor || ''} onChange={e => setEditForm({...editForm, contractor: e.target.value})} />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
-                    <input required type="date" className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                      value={editForm.startDate || ''} onChange={e => setEditForm({...editForm, startDate: e.target.value})} />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
-                    <input type="date" className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                      value={editForm.endDate || ''} onChange={e => setEditForm({...editForm, endDate: e.target.value})} />
-                  </div>
-                  
-                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
-                    <input type="text" className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                      value={editForm.location || ''} onChange={e => setEditForm({...editForm, location: e.target.value})} />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-6 border-t border-slate-100 mt-4">
-                   <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Cancel</button>
-                   <button type="submit" className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium shadow-md shadow-indigo-200">
-                      {editForm.id ? 'Save Changes' : 'Create Project'}
-                   </button>
-                </div>
-             </form>
-          </div>
-        </div>
-      )}
-    </div>
+      <Dialog open={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle fontWeight="bold">{editForm.id ? 'Edit Project' : 'New Project'}</DialogTitle>
+        <DialogContent>
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12}><TextField label="Project Name" fullWidth required value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} onBlur={validateForm} error={!!projectNameError} helperText={projectNameError} /></Grid>
+              <Grid item xs={12} sm={6}><TextField label="Project Code" fullWidth required value={editForm.code || ''} onChange={e => setEditForm({...editForm, code: e.target.value})} onBlur={validateForm} error={!!projectCodeError} helperText={projectCodeError} /></Grid>
+              <Grid item xs={12} sm={6}><TextField label="Contract No" fullWidth value={editForm.contractNo || ''} onChange={e => setEditForm({...editForm, contractNo: e.target.value})} onBlur={validateForm} error={!!contractNoError} helperText={contractNoError} /></Grid>
+              <Grid item xs={12} sm={6}><TextField label="Client / Employer" fullWidth required value={editForm.client || ''} onChange={e => setEditForm({...editForm, client: e.target.value})} onBlur={validateForm} error={!!clientError} helperText={clientError} /></Grid>
+              <Grid item xs={12} sm={6}><TextField label="Authority Engineer" fullWidth value={editForm.engineer || ''} onChange={e => setEditForm({...editForm, engineer: e.target.value})} /></Grid>
+              <Grid item xs={12}><TextField label="Contractor" fullWidth required value={editForm.contractor || ''} onChange={e => setEditForm({...editForm, contractor: e.target.value})} onBlur={validateForm} error={!!contractorError} helperText={contractorError} /></Grid>
+              <Grid item xs={12} sm={6}><TextField label="Start Date" type="date" InputLabelProps={{ shrink: true }} fullWidth required value={editForm.startDate || ''} onChange={e => setEditForm({...editForm, startDate: e.target.value})} onBlur={validateForm} error={!!startDateError} helperText={startDateError} /></Grid>
+              <Grid item xs={12} sm={6}><TextField label="End Date" type="date" InputLabelProps={{ shrink: true }} fullWidth value={editForm.endDate || ''} onChange={e => setEditForm({...editForm, endDate: e.target.value})} onBlur={validateForm} error={!!endDateError} helperText={endDateError} /></Grid>
+              <Grid item xs={12}><TextField label="Location" fullWidth value={editForm.location || ''} onChange={e => setEditForm({...editForm, location: e.target.value})} /></Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsModalOpen(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={handleSubmit} variant="contained" disabled={saving} startIcon={saving ? <CircularProgress size={20} /> : (editForm.id ? <Edit /> : <Plus />)}>{editForm.id ? 'Save Changes' : 'Create Project'}</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 export default ProjectsList;
